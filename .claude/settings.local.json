@@ -12,7 +12,8 @@
       "WebFetch(domain:deepwiki.com)",
       "WebFetch(domain:marketplace.delorean.com)",
       "WebFetch(domain:)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "WebFetch(domain:www.coda.co)"
     ]
   }
 }
