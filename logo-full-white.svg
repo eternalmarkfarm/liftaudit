@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80">
+  <!-- LiftAudit Full Logo: Monogram + Text -->
+
+  <!-- LA Monogram -->
+  <path d="M6,4 L18,4 L18,58 L46,58 L46,70 L6,70 Z" fill="#ffffff"/>
+  <path d="M42,70 L62,4 L70,4 L90,70 L78,70 L73,52 L59,52 L54,70 Z M61,42 L66,18 L71,42 Z"
+        fill="#ffffff" fill-rule="evenodd"/>
+  <circle cx="66" cy="32" r="3.2" fill="#307ae8"/>
+
+  <!-- Divider line -->
+  <line x1="102" y1="20" x2="102" y2="60" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
+
+  <!-- "Lift" text - white, bold geometric -->
+  <text x="114" y="54" font-family="'Space Grotesk','Inter',system-ui,sans-serif" font-weight="700" font-size="36" fill="#ffffff" letter-spacing="-0.5">Lift</text>
+
+  <!-- "Audit" text - blue -->
+  <text x="185" y="54" font-family="'Space Grotesk','Inter',system-ui,sans-serif" font-weight="700" font-size="36" fill="#307ae8" letter-spacing="-0.5">Audit</text>
+</svg>

@@ -1,0 +1,4419 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiftAudit — Автоматический аудит лифтовой документации</title>
+  <meta name="description"
+    content="Автоматическая проверка лифтовой документации по 19 критериям. OCR-распознавание, отчеты в PDF, защита от штрафов.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="vendor/three.min.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { dark: { 950: '#0a0a14', 900: '#10101c', 800: '#151524', 700: '#1c1c32', 600: '#24243e' }, accent: { DEFAULT: '#307ae8', light: '#60a5fa', dark: '#1d4ed8', 50: '#eff6ff' }, blue: { glow: 'rgba(48,122,232,0.15)' } }, fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Space Grotesk', 'sans-serif'] } } } }
+  </script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    :root {
+      --sphere-core-color: #4a78a4;
+      --sphere-light-color: #d8ecff;
+      --sphere-glow-color: rgba(155, 184, 255, 0.28);
+      --sphere-inset-glow-color: rgba(194, 211, 255, 0.12);
+      --sphere-bg-gradient: linear-gradient(0deg, var(--sphere-core-color) 0%, #6a9ec8 35%, #a9d8fb 60%, var(--sphere-light-color) 76%);
+      --sphere-bg-shadow: 0 4px 54px 40px var(--sphere-glow-color);
+      --sphere-highlight-gradient: radial-gradient(ellipse at 50% 88%, rgba(6, 16, 34, 0.64) 0%, rgba(6, 16, 34, 0.3) 36%, rgba(6, 16, 34, 0.02) 66%), radial-gradient(circle at 35% 35%, #000 0%, #0f1824 17%, #2f435a 43%, #95aec4 100%), linear-gradient(180deg, rgba(8, 16, 34, 0.1) 0%, rgba(8, 16, 34, 0.24) 55%, rgba(8, 16, 34, 0.4) 100%);
+      --sphere-highlight-shadow: inset 0 4px 54px 40px var(--sphere-inset-glow-color), inset 0 -42px 78px -54px rgba(8, 18, 36, 0.62);
+      --sphere-halo-gradient: radial-gradient(circle at 50% 46%, rgba(96, 165, 250, 0.30) 0%, rgba(80, 130, 214, 0.16) 38%, rgba(52, 94, 168, 0.07) 62%, rgba(16, 28, 54, 0) 78%);
+      --sphere-halo-opacity: 0;
+      --sphere-halo-blur: 28px;
+    }
+
+    .sphere-enhanced {
+      --sphere-core-color: #467db1;
+      --sphere-light-color: #e7f4ff;
+      --sphere-glow-color: rgba(121, 175, 255, 0.46);
+      --sphere-inset-glow-color: rgba(209, 231, 255, 0.24);
+      --sphere-bg-gradient: linear-gradient(0deg, #487cab 0%, #74a7d2 32%, #b3dcff 62%, #e7f4ff 83%);
+      --sphere-bg-shadow: 0 8px 74px 50px var(--sphere-glow-color), 0 0 170px 28px rgba(74, 136, 224, 0.22);
+      --sphere-highlight-gradient: radial-gradient(circle at 36% 32%, #071327 0%, #24517e 44%, #c8e4ff 100%), linear-gradient(180deg, rgba(10, 20, 40, 0.05) 0%, rgba(10, 20, 40, 0.14) 74%);
+      --sphere-highlight-shadow: inset 0 8px 60px 32px var(--sphere-inset-glow-color), inset 0 -24px 58px -42px rgba(11, 20, 38, 0.4);
+      --sphere-halo-gradient: radial-gradient(circle at 50% 44%, rgba(110, 173, 255, 0.55) 0%, rgba(92, 146, 230, 0.28) 36%, rgba(53, 93, 165, 0.12) 62%, rgba(16, 28, 54, 0) 80%);
+      --sphere-halo-opacity: 1;
+      --sphere-halo-blur: 36px;
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #10101c;
+      color: #e2e8f0;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased
+    }
+
+    /* Hero gradient overlay — scrolls with content */
+    .hero-gradient {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 120vh;
+      pointer-events: none;
+      z-index: 0;
+      background: linear-gradient(180deg, #1e3f72 0%, #1a3862 20%, #152c50 40%, #111e3a 60%, rgba(16, 16, 28, 0) 100%)
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #10101c
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #307ae8, #8b5cf6);
+      border-radius: 10px
+    }
+
+    /* ===== AURORA / LIGHT EFFECTS ===== */
+    .aurora {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden
+    }
+
+    .aurora-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0;
+      animation: aurora-drift 12s ease-in-out infinite
+    }
+
+    .aurora-blob:nth-child(1) {
+      width: 1100px;
+      height: 700px;
+      background: radial-gradient(ellipse, rgba(60, 140, 240, 0.25), rgba(48, 122, 232, 0.12) 40%, transparent 70%);
+      top: -10%;
+      left: 10%;
+      animation-delay: 0s;
+      opacity: 0.85
+    }
+
+    .aurora-blob:nth-child(2) {
+      width: 900px;
+      height: 800px;
+      background: radial-gradient(ellipse, rgba(139, 92, 246, 0.18), transparent 70%);
+      top: 20%;
+      right: -10%;
+      animation-delay: 4s;
+      opacity: 0.75
+    }
+
+    .aurora-blob:nth-child(3) {
+      width: 1000px;
+      height: 600px;
+      background: radial-gradient(ellipse, rgba(59, 130, 246, 0.16), transparent 70%);
+      bottom: 5%;
+      left: -10%;
+      animation-delay: 8s;
+      opacity: 0.7
+    }
+
+    .aurora-blob:nth-child(4) {
+      width: 800px;
+      height: 700px;
+      background: radial-gradient(ellipse, rgba(99, 102, 241, 0.14), transparent 70%);
+      top: 50%;
+      left: 30%;
+      animation-delay: 2s;
+      opacity: 0.6
+    }
+
+    .aurora-blob:nth-child(5) {
+      width: 1000px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(48, 140, 255, 0.12), transparent 65%);
+      top: 70%;
+      right: 5%;
+      animation-delay: 6s;
+      opacity: 0.55
+    }
+
+    @keyframes aurora-drift {
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+        opacity: var(--ao, 0.5)
+      }
+
+      25% {
+        transform: translate(40px, -30px) scale(1.1);
+        opacity: calc(var(--ao, 0.5)*1.3)
+      }
+
+      50% {
+        transform: translate(-20px, 40px) scale(0.95);
+        opacity: var(--ao, 0.5)
+      }
+
+      75% {
+        transform: translate(-40px, -20px) scale(1.05);
+        opacity: calc(var(--ao, 0.5)*0.8)
+      }
+    }
+
+    /* Mesh grid */
+    .mesh-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.03;
+      background-image: linear-gradient(rgba(148, 163, 184, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.4) 1px, transparent 1px);
+      background-size: 80px 80px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 80%)
+    }
+
+    /* Radial light on sections */
+    .section-glow {
+      position: relative
+    }
+
+    .section-glow::before {
+      content: '';
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1000px;
+      height: 500px;
+      background: radial-gradient(ellipse, rgba(48, 122, 232, 0.08), rgba(139, 92, 246, 0.03) 50%, transparent 70%);
+      pointer-events: none;
+      z-index: 0
+    }
+
+    /* ===== GLASS ===== */
+    .glass {
+      background: rgb(16, 22, 44);
+      border: 1px solid rgba(255, 255, 255, 0.08)
+    }
+
+    .glass-light {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border: 1px solid rgba(255, 255, 255, 0.07)
+    }
+
+    .glass-card {
+      background: rgb(16, 22, 44);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.5s cubic-bezier(0.17, 0.25, 0.30, 1.00)
+    }
+
+    .glass-card:hover {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+      border-color: rgba(48, 122, 232, 0.25);
+      transform: translateY(-6px) scale(1.01);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3), 0 0 60px rgba(48, 122, 232, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05)
+    }
+
+    /* ===== GRADIENT TEXT ===== */
+    .gradient-text {
+      background: linear-gradient(135deg, #60a5fa, #818cf8, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
+    }
+
+    .gradient-text-warm {
+      background: linear-gradient(135deg, #307ae8, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
+    }
+
+    .heading-metallic {
+      background: linear-gradient(180deg, #ffffff 0%, #dce3ec 25%, #b0bac8 55%, #8d99aa 82%, #7a8696 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn-primary {
+      position: relative;
+      background: linear-gradient(135deg, #307ae8, #2563eb);
+      padding: 14px 32px;
+      border-radius: 14px;
+      font-weight: 600;
+      color: #fff;
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.17, 0.25, 0.30, 1.00);
+      box-shadow: 0 0 0 0 rgba(48, 122, 232, 0), 0 4px 15px rgba(48, 122, 232, 0.2)
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 40px rgba(48, 122, 232, 0.3), 0 8px 30px rgba(48, 122, 232, 0.25);
+      transform: translateY(-2px)
+    }
+
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 200%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.6s ease
+    }
+
+    .btn-primary:hover::before {
+      left: 100%
+    }
+
+    .btn-ghost {
+      padding: 14px 32px;
+      border-radius: 14px;
+      font-weight: 500;
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      transition: all 0.4s cubic-bezier(0.17, 0.25, 0.30, 1.00)
+    }
+
+    .btn-ghost:hover {
+      color: #fff;
+      border-color: rgba(48, 122, 232, 0.4);
+      background: rgba(48, 122, 232, 0.05);
+      transform: translateY(-2px)
+    }
+
+    /* ===== BADGES ===== */
+    .badge-ok {
+      background: rgba(34, 197, 94, 0.1);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px
+    }
+
+    .badge-not-ok {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px
+    }
+
+    .badge-no-data {
+      background: rgba(234, 179, 8, 0.1);
+      color: #fbbf24;
+      border: 1px solid rgba(234, 179, 8, 0.2);
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px
+    }
+
+    /* ===== FLOATING ===== */
+    @keyframes float-slow {
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg)
+      }
+
+      50% {
+        transform: translateY(-15px) rotate(1deg)
+      }
+    }
+
+    @keyframes float-slow-2 {
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg)
+      }
+
+      50% {
+        transform: translateY(-12px) rotate(-1deg)
+      }
+    }
+
+    .float-1 {
+      animation: float-slow 6s ease-in-out infinite
+    }
+
+    .float-2 {
+      animation: float-slow-2 5s ease-in-out 1.5s infinite
+    }
+
+    .float-3 {
+      animation: float-slow 7s ease-in-out 3s infinite
+    }
+
+    /* ===== REVEAL ===== */
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px)
+    }
+
+    /* ===== NAV ===== */
+    #navbar {
+      background: rgba(8, 16, 35, 0.5);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.5s ease
+    }
+
+    #navbar .logo-text {
+      color: #fff;
+      transition: color 0.5s ease
+    }
+
+    #navbar .logo-svg {
+      color: #fff;
+      transition: color 0.5s ease
+    }
+
+    .nav-scrolled {
+      background: rgba(25, 60, 120, 0.45) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-bottom: 1px solid rgba(96, 165, 250, 0.12) !important
+    }
+
+    .nav-scrolled .logo-text {
+      color: #e2e8f0 !important
+    }
+
+    .nav-scrolled .logo-svg {
+      color: #fff !important
+    }
+
+    /* === DROPDOWN TRIGGER === */
+    .nav-dd-wrap {
+      position: relative;
+      height: 64px;
+      display: flex;
+      align-items: center
+    }
+
+    .nav-dd-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.72);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s ease;
+      position: relative;
+      white-space: nowrap;
+      font-family: inherit;
+      letter-spacing: 0.01em
+    }
+
+    .nav-dd-trigger::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      width: 0;
+      height: 1.5px;
+      background: #60a5fa;
+      transform: translateX(-50%);
+      transition: width 0.25s ease
+    }
+
+    .nav-dd-wrap:hover .nav-dd-trigger,
+    .nav-dd-wrap.is-open .nav-dd-trigger {
+      color: #93c5fd
+    }
+
+    .nav-dd-wrap:hover .nav-dd-trigger::after,
+    .nav-dd-wrap.is-open .nav-dd-trigger::after {
+      width: calc(100% - 24px)
+    }
+
+    .nav-chevron {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      transition: transform 0.22s ease;
+      opacity: 0.6
+    }
+
+    .nav-dd-wrap:hover .nav-chevron,
+    .nav-dd-wrap.is-open .nav-chevron {
+      transform: rotate(180deg);
+      opacity: 1
+    }
+
+    /* === PLAIN LINKS === */
+    .nav-plain-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.72);
+      text-decoration: none;
+      position: relative;
+      transition: color 0.2s ease;
+      white-space: nowrap;
+      letter-spacing: 0.01em
+    }
+
+    .nav-plain-link::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      width: 0;
+      height: 1.5px;
+      background: #60a5fa;
+      transform: translateX(-50%);
+      transition: width 0.25s ease
+    }
+
+    .nav-plain-link:hover {
+      color: #93c5fd
+    }
+
+    .nav-plain-link:hover::after {
+      width: calc(100% - 24px)
+    }
+
+    /* === DROPDOWN PANEL === */
+    .nav-dd-panel {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-8px) scale(0.97);
+      background: rgb(32, 40, 72);
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 32px 80px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(48, 122, 232, 0.06);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.17, 0.25, 0.30, 1.00);
+      z-index: 200;
+      min-width: 480px;
+      overflow: hidden
+    }
+
+    .nav-dd-panel--narrow {
+      min-width: 320px
+    }
+
+    .nav-dd-panel.is-open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0) scale(1)
+    }
+
+    .nav-dd-inner {
+      padding: 10px
+    }
+
+    .nav-dd-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px
+    }
+
+    .nav-dd-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 10px 11px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: background 0.15s ease
+    }
+
+    .nav-dd-item:hover {
+      background: rgba(48, 122, 232, 0.08)
+    }
+
+    .nav-dd-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: rgba(48, 122, 232, 0.1);
+      border: 1px solid rgba(48, 122, 232, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #60a5fa;
+      transition: background 0.15s ease, border-color 0.15s ease
+    }
+
+    .nav-dd-item:hover .nav-dd-icon {
+      background: rgba(48, 122, 232, 0.18);
+      border-color: rgba(96, 165, 250, 0.35)
+    }
+
+    .nav-dd-icon--step {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: rgba(99, 102, 241, 0.18);
+      color: #a5b4fc
+    }
+
+    .nav-dd-item:hover .nav-dd-icon--step {
+      background: rgba(99, 102, 241, 0.18);
+      border-color: rgba(165, 180, 252, 0.35)
+    }
+
+    .nav-dd-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+      line-height: 1.35;
+      margin-bottom: 2px
+    }
+
+    .nav-dd-desc {
+      font-size: 11.5px;
+      color: #4e5f7a;
+      line-height: 1.4
+    }
+
+    .nav-dd-item:hover .nav-dd-title {
+      color: #fff
+    }
+
+    .nav-dd-item:hover .nav-dd-desc {
+      color: #7a8fa8
+    }
+
+    /* === MULTI-COLUMN DROPDOWN === */
+    .nav-dd-cols {
+      display: flex;
+      gap: 0
+    }
+
+    .nav-dd-col-main {
+      flex: 1;
+      min-width: 0;
+      padding: 10px
+    }
+
+    .nav-dd-col-side {
+      width: 212px;
+      flex-shrink: 0;
+      padding: 10px;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05)
+    }
+
+    .nav-dd-section-head {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #3a4a60;
+      text-transform: uppercase;
+      padding: 6px 11px 6px
+    }
+
+    .nav-dd-featured {
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(239, 68, 68, 0.04);
+      border: 1px solid rgba(239, 68, 68, 0.1);
+      margin-bottom: 8px
+    }
+
+    .nav-dd-featured-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #f87171;
+      margin-bottom: 5px
+    }
+
+    .nav-dd-featured-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      line-height: 1.35
+    }
+
+    .nav-dd-featured-meta {
+      font-size: 11px;
+      color: #4e5f7a;
+      line-height: 1.45
+    }
+
+    .nav-dd-resource-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 11px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #7a8fa8;
+      font-size: 12.5px;
+      transition: color 0.15s ease, background 0.15s ease
+    }
+
+    .nav-dd-resource-item:hover {
+      color: #e2e8f0;
+      background: rgba(48, 122, 232, 0.07)
+    }
+
+    .nav-dd-resource-item svg {
+      flex-shrink: 0;
+      opacity: 0.55
+    }
+
+    /* === AUTH DROPDOWN === */
+    .nav-dd-auth-left {
+      width: 188px;
+      flex-shrink: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-right: 1px solid rgba(255, 255, 255, 0.06)
+    }
+
+    .nav-dd-auth-left-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #3a4a60;
+      text-transform: uppercase;
+      margin-bottom: 8px
+    }
+
+    .nav-dd-auth-left p {
+      font-size: 12.5px;
+      color: #4e5f7a;
+      line-height: 1.55
+    }
+
+    .nav-dd-auth-right {
+      flex: 1;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.05)
+    }
+
+    .nav-dd-auth-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 9px;
+      text-decoration: none;
+      transition: background 0.15s ease
+    }
+
+    .nav-dd-auth-item:hover {
+      background: rgba(48, 122, 232, 0.08)
+    }
+
+    .nav-dd-auth-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+      line-height: 1
+    }
+
+    .nav-dd-auth-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: #d1daea;
+      line-height: 1.25
+    }
+
+    .nav-dd-auth-desc {
+      font-size: 11px;
+      color: #4e5f7a;
+      line-height: 1.3;
+      margin-top: 1px
+    }
+
+    /* Cabinet trigger */
+    .nav-dd-trigger--cabinet {
+      border: 1px solid rgba(96, 165, 250, 0.15);
+      background: rgba(48, 122, 232, 0.04) !important;
+      padding: 7px 14px;
+      color: rgba(255, 255, 255, 0.82) !important
+    }
+
+    .nav-dd-wrap:hover .nav-dd-trigger--cabinet,
+    .nav-dd-wrap.is-open .nav-dd-trigger--cabinet {
+      border-color: rgba(96, 165, 250, 0.35) !important;
+      background: rgba(48, 122, 232, 0.1) !important;
+      color: #93c5fd !important
+    }
+
+    /* Panel size variants */
+    .nav-dd-panel--wide {
+      min-width: 620px
+    }
+
+    .nav-dd-panel--auth {
+      min-width: 510px
+    }
+
+    /* Right-aligned panel for last nav item */
+    .nav-dd-panel--right {
+      left: auto;
+      right: 0;
+      transform: translateX(0) translateY(-8px) scale(0.97)
+    }
+
+    .nav-dd-panel--right.is-open {
+      transform: translateX(0) translateY(0) scale(1)
+    }
+
+    /* ===== HERO TEXT ===== */
+    .hero-section h1 {
+      text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3)
+    }
+
+    .hero-section .hero-subtitle {
+      color: #b0c4de
+    }
+
+    .hero-section .hero-highlight {
+      color: #e2e8f0
+    }
+
+    .hero-section .hero-badge-text {
+      color: #94a3b8
+    }
+
+    .sphere-shell {
+      min-height: 540px
+    }
+
+    .sphere-wrap {
+      aspect-ratio: 1;
+      justify-content: center;
+      align-self: flex-end;
+      align-items: center;
+      width: 100%;
+      max-width: 44rem;
+      display: flex;
+      position: relative
+    }
+
+    .sphere-halo {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 130%;
+      height: 130%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: var(--sphere-halo-gradient);
+      filter: blur(var(--sphere-halo-blur));
+      opacity: var(--sphere-halo-opacity);
+      pointer-events: none;
+      z-index: 0;
+      transition: opacity .35s ease, filter .35s ease
+    }
+
+    .sphere-background {
+      background-image: var(--sphere-bg-gradient);
+      mix-blend-mode: normal;
+      border-radius: 50%;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      box-shadow: var(--sphere-bg-shadow);
+      pointer-events: none;
+      z-index: 1
+    }
+
+    .sphere-highlight {
+      mix-blend-mode: luminosity;
+      background-image: var(--sphere-highlight-gradient);
+      border: 0 solid transparent;
+      border-radius: 50%;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      box-shadow: var(--sphere-highlight-shadow);
+      pointer-events: none;
+      z-index: 2
+    }
+
+    .sphere-canvas {
+      aspect-ratio: 1;
+      mix-blend-mode: lighten;
+      border-radius: 50%;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+      z-index: 3
+    }
+
+    .sphere-prompt {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 7;
+      opacity: 0;
+      pointer-events: none;
+      min-width: 292px;
+      max-width: min(420px, calc(100% - 1.5rem));
+      transform: translate(-50%, -50%) scale(0.92);
+      transition: opacity .22s ease, transform .28s cubic-bezier(.22, 1, .36, 1);
+      filter: drop-shadow(0 14px 35px rgba(4, 10, 26, .42)) drop-shadow(0 0 18px rgba(56, 140, 230, .18))
+    }
+
+    .sphere-prompt.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto
+    }
+
+    .sphere-prompt-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: linear-gradient(135deg, #2f7eea, #205fcd) padding-box, linear-gradient(90deg, rgba(173, 211, 255, .35), rgba(173, 211, 255, .35)) border-box;
+      border: 1px solid transparent;
+      border-radius: 11px
+    }
+
+    .sphere-prompt-platform {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      object-fit: cover;
+      background: #fff;
+      flex: 0 0 16px
+    }
+
+    .sphere-prompt-text {
+      font-size: 12px;
+      line-height: 1.25;
+      color: #fff;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .sphere-prompt-body {
+      margin-top: 6px;
+      padding: 10px 11px;
+      background: rgba(12, 22, 42, .9);
+      border: 1px solid rgba(96, 165, 250, .28);
+      border-radius: 11px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04)
+    }
+
+    .sphere-prompt-title {
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 9px
+    }
+
+    .sphere-prompt-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px
+    }
+
+    .sphere-prompt-label {
+      font-size: 10px;
+      line-height: 1;
+      color: #9fb3cb;
+      margin-bottom: 6px
+    }
+
+    .sphere-prompt-pair {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      line-height: 1
+    }
+
+    .sphere-prompt-value {
+      font-size: 13px;
+      color: #e2e8f0;
+      font-weight: 600
+    }
+
+    .sphere-prompt-delta {
+      font-size: 10px;
+      color: #16a34a;
+      font-weight: 600
+    }
+
+    .sphere-prompt-delta.neg {
+      color: #ef4444
+    }
+
+    .sphere-prompt-delta.neutral {
+      color: #94a3b8
+    }
+
+    .sphere-prompt-mentioned {
+      display: flex;
+      align-items: center;
+      gap: 3px
+    }
+
+    .sphere-prompt-logo {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      object-fit: cover;
+      border: 1px solid rgba(148, 163, 184, .24);
+      background: #0f172a
+    }
+
+    .sphere-prompt.negative .sphere-prompt-body {
+      border-color: rgba(239, 100, 100, .38)
+    }
+
+    .sphere-prompt.negative .sphere-prompt-title {
+      color: #fca5a5
+    }
+
+    .sphere-prompt-status {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%
+    }
+
+    .sphere-prompt.negative .sphere-prompt-status {
+      color: #fca5a5
+    }
+
+    @property --sphere-prompt-rot {
+      syntax: '<angle>';
+      inherits: false;
+      initial-value: 0deg
+    }
+
+    .sphere-enhanced .sphere-prompt-header {
+      background: linear-gradient(135deg, #2f7eea, #1f63ce) padding-box, linear-gradient(90deg, rgba(160, 208, 255, .5), rgba(160, 208, 255, .5)) border-box
+    }
+
+    .sphere-enhanced .sphere-prompt-header.pulse {
+      background: linear-gradient(135deg, #f5cfb3, #2f7eea) padding-box, conic-gradient(from var(--sphere-prompt-rot), #ffffff, #f2d6c2, #ffffff, #70b4ff, #ffffff) border-box;
+      animation: sphere-prompt-header-spin 1.1s cubic-bezier(.2, .8, .2, 1)
+    }
+
+    .sphere-enhanced .sphere-prompt.autoplaying {
+      transform: translate(-50%, -50%) scale(.985)
+    }
+
+    @keyframes sphere-prompt-header-spin {
+      0% {
+        --sphere-prompt-rot: 0deg
+      }
+
+      100% {
+        --sphere-prompt-rot: 360deg
+      }
+    }
+
+    @media (min-width:1024px) {
+      .sphere-shell {
+        width: 128%;
+        min-height: 600px;
+        transform: translateX(52px);
+      }
+
+      .sphere-wrap {
+        width: 100%;
+        max-width: none;
+        transform: none;
+      }
+    }
+
+    @media (max-width:768px) {
+      .sphere-prompt {
+        min-width: 250px
+      }
+
+      .sphere-prompt-text {
+        max-width: 205px
+      }
+    }
+
+    /* ===== HERO GLITCH LAYERS ===== */
+    .hero-animated-text {
+      display: inline-block;
+      position: relative;
+      padding-right: 1rem
+    }
+
+    .hero-main-text {
+      display: block;
+      opacity: 0
+    }
+
+    .hero-shadow-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      color: transparent;
+      pointer-events: none;
+      text-shadow: 0 0 44px rgba(48, 122, 232, 0.42)
+    }
+
+    /* ===== MOBILE MENU ===== */
+    .mobile-menu {
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.17, 0.25, 0.30, 1.00)
+    }
+
+    .mobile-menu.open {
+      transform: translateX(0)
+    }
+
+    /* ===== CRITERIA ===== */
+    .criteria-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s cubic-bezier(0.17, 0.25, 0.30, 1.00), opacity 0.3s ease
+    }
+
+    .criteria-item.active .criteria-content {
+      max-height: 200px
+    }
+
+    .criteria-chevron {
+      transition: transform 0.4s cubic-bezier(0.17, 0.25, 0.30, 1.00)
+    }
+
+    .criteria-item.active .criteria-chevron {
+      transform: rotate(180deg)
+    }
+
+    /* ===== MARQUEE ===== */
+    @keyframes marquee {
+      0% {
+        transform: translateX(0)
+      }
+
+      100% {
+        transform: translateX(-50%)
+      }
+    }
+
+    .marquee-track {
+      animation: marquee 55s linear infinite;
+      will-change: transform;
+      display: flex;
+      align-items: center
+    }
+
+    /* mask-image fades edges into ANY background — no color mismatch */
+    .marquee-outer {
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 13%, #000 87%, transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0%, #000 13%, #000 87%, transparent 100%);
+    }
+
+    /* Items: Inter 500 weight, moderately visible */
+    .marquee-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 15px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      color: rgba(148, 163, 184, 0.72);
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      flex-shrink: 0
+    }
+
+    .marquee-item svg {
+      flex-shrink: 0
+    }
+
+    .marquee-sep {
+      color: rgba(71, 85, 105, 0.4);
+      flex-shrink: 0;
+      font-size: 14px;
+      margin: 0 26px;
+      line-height: 1;
+      user-select: none
+    }
+
+    /* ===== ORBIT ANIMATION for footer ===== */
+    @keyframes orbit-spin {
+      0% {
+        transform: rotate(0deg)
+      }
+
+      100% {
+        transform: rotate(360deg)
+      }
+    }
+
+    @keyframes orbit-spin-reverse {
+      0% {
+        transform: rotate(0deg)
+      }
+
+      100% {
+        transform: rotate(-360deg)
+      }
+    }
+
+    .orbit-ring {
+      animation: orbit-spin 60s linear infinite
+    }
+
+    .orbit-ring-reverse {
+      animation: orbit-spin-reverse 80s linear infinite
+    }
+
+    /* Dashed orbit */
+    .orbit-path {
+      fill: none;
+      stroke: rgba(148, 163, 184, 0.06);
+      stroke-width: 1;
+      stroke-dasharray: 8 6
+    }
+
+    .orbit-path-2 {
+      fill: none;
+      stroke: rgba(99, 102, 241, 0.08);
+      stroke-width: 1;
+      stroke-dasharray: 4 8
+    }
+
+    /* ===== LIGHT BEAM ===== */
+    @keyframes beam-sweep {
+      0% {
+        transform: translateX(-100%) skewX(-15deg)
+      }
+
+      100% {
+        transform: translateX(200%) skewX(-15deg)
+      }
+    }
+
+    .light-beam {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01), transparent);
+      animation: beam-sweep 7s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 2
+    }
+
+    /* ===== STEP LINE ===== */
+    .step-connector {
+      position: absolute;
+      left: 27px;
+      top: 56px;
+      bottom: -8px;
+      width: 2px;
+      background: linear-gradient(to bottom, rgba(48, 122, 232, 0.3), transparent)
+    }
+
+    /* ===== PRICING BORDER ===== */
+    @keyframes gradient-rotate {
+      0% {
+        transform: rotate(0deg)
+      }
+
+      100% {
+        transform: rotate(360deg)
+      }
+    }
+
+    .pricing-border {
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      z-index: -1;
+      overflow: hidden
+    }
+
+    .pricing-border::before {
+      content: '';
+      position: absolute;
+      inset: -50%;
+      background: conic-gradient(from 0deg, #307ae8, #8b5cf6, #6366f1, #307ae8);
+      animation: gradient-rotate 4s linear infinite
+    }
+
+    .pricing-border::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      background: #12121f;
+      border-radius: inherit
+    }
+
+    /* ===== SECTION DIVIDER ===== */
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.08), rgba(48, 122, 232, 0.1), rgba(148, 163, 184, 0.08), transparent)
+    }
+
+    /* ===== RIPPLE BUTTON ===== */
+    .btn-ripple {
+      position: relative;
+      overflow: hidden
+    }
+
+    .btn-ripple .ripple-circle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      transform: scale(0);
+      animation: ripple-expand 0.6s ease-out forwards;
+      pointer-events: none
+    }
+
+    @keyframes ripple-expand {
+      to {
+        transform: scale(4);
+        opacity: 0
+      }
+    }
+
+    /* ===== HERO PARTICLES ===== */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0
+    }
+
+    @keyframes particle-float {
+      0% {
+        opacity: 0;
+        transform: translateY(0) scale(0)
+      }
+
+      10% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1)
+      }
+
+      90% {
+        opacity: 0.5
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-200px) scale(0.5)
+      }
+    }
+
+    /* ===== MOUSE GLOW ===== */
+    .mouse-glow {
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1;
+      background: radial-gradient(circle, rgba(48, 122, 232, 0.07), rgba(139, 92, 246, 0.03) 40%, transparent 70%);
+      transform: translate(-50%, -50%);
+      transition: opacity 0.3s ease;
+      opacity: 0
+    }
+
+    .mouse-glow.active {
+      opacity: 1
+    }
+
+    /* ===== CARD SPOTLIGHT ===== */
+    .spotlight-card {
+      position: relative;
+      overflow: hidden
+    }
+
+    .spotlight-card::before {
+      content: '';
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(48, 122, 232, 0.08), transparent 70%);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      z-index: 1
+    }
+
+    .spotlight-card:hover::before {
+      opacity: 1
+    }
+
+    /* ===== GLOW LINE under sections ===== */
+    .glow-line {
+      height: 1px;
+      position: relative;
+      overflow: visible
+    }
+
+    .glow-line::after {
+      content: '';
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 16px;
+      background: radial-gradient(ellipse, rgba(48, 122, 232, 0.2), transparent 70%);
+      pointer-events: none
+    }
+
+    /* ===== LOGO ICON ===== */
+    .logo-icon {
+      position: relative
+    }
+
+    .logo-icon::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: inherit;
+      background: radial-gradient(circle, rgba(48, 122, 232, 0.15), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      z-index: -1
+    }
+
+    .logo-icon:hover::after,
+    .group:hover .logo-icon::after {
+      opacity: 1
+    }
+
+    /* ===== STACK-STYLE GET STARTED ===== */
+    .la-getstarted {
+      position: relative;
+      padding-top: 8rem;
+      overflow: hidden;
+      background: radial-gradient(65% 50% at 50% 20%, rgba(58, 102, 225, .2) 0%, rgba(16, 16, 28, 0) 67%)
+    }
+
+    .la-getstarted::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(42% 42% at 22% 42%, rgba(48, 122, 232, .12) 0%, rgba(48, 122, 232, 0) 72%), radial-gradient(38% 40% at 78% 40%, rgba(99, 102, 241, .1) 0%, rgba(99, 102, 241, 0) 72%);
+      pointer-events: none
+    }
+
+    .la-getstarted-main {
+      position: relative;
+      padding: 3rem 1.5rem 0;
+      display: flex;
+      justify-content: center;
+      z-index: 2
+    }
+
+    .la-subtext {
+      text-align: center;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.65), rgba(100, 140, 240, 0.85));
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: .75rem;
+      display: inline-block;
+      letter-spacing: .2em;
+      font-size: 14px;
+      font-family: ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+      font-weight: 500
+    }
+
+    .la-glow-bg {
+      display: block;
+      height: 500px;
+      width: min(940px, 94vw);
+      border-radius: 921px;
+      opacity: .4;
+      background: radial-gradient(50% 50% at 50% 50%, rgba(105, 130, 255, .7) 0%, rgba(90, 124, 247, .4) 28%, rgba(68, 102, 220, .15) 52%, rgba(16, 16, 28, 0) 100%);
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      filter: blur(18px);
+      pointer-events: none
+    }
+
+    .la-cta-shell {
+      opacity: .3;
+      box-shadow: 0 0 25.8px 0 rgba(255, 255, 255, 0);
+      border-radius: 10px;
+      display: inline-flex;
+      position: relative;
+      z-index: 3
+    }
+
+    .la-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      color: #1f2937;
+      border: none;
+      border-radius: 10px;
+      padding: .82rem 1.35rem;
+      font-size: .92rem;
+      font-weight: 600;
+      line-height: 1;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background .25s ease, color .25s ease
+    }
+
+    .la-cta-btn:hover {
+      background: #f3f4f6;
+      color: #0f172a
+    }
+
+    .la-line-group {
+      height: clamp(280px, 28vw, 400px);
+      transform-origin: top center;
+      position: absolute;
+      z-index: 1;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%) scaleY(0);
+      width: 100px;
+      opacity: 0;
+      pointer-events: none
+    }
+
+    .la-line {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, rgba(200, 224, 255, .96) 0%, rgba(117, 170, 255, .73) 24%, rgba(59, 130, 246, .35) 62%, rgba(15, 23, 42, 0) 100%);
+      animation: la-line-flow 3.2s ease-in-out infinite
+    }
+
+    .la-line-blur-sm {
+      filter: blur(2px);
+      opacity: .9
+    }
+
+    .la-line-blur-xl {
+      filter: blur(9px);
+      opacity: .65
+    }
+
+    @keyframes la-line-flow {
+
+      0%,
+      100% {
+        opacity: .35
+      }
+
+      50% {
+        opacity: .95
+      }
+    }
+
+    .la-footer-divider {
+      height: 220px;
+      width: 100%;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      background: linear-gradient(180deg, rgba(16, 16, 28, 0), #10101c);
+      pointer-events: none
+    }
+
+    .la-footer-core {
+      position: relative;
+      z-index: 2;
+      padding: clamp(255px, 23vw, 360px) 1.5rem 2.6rem
+    }
+
+    .la-footer-wrap {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 0 .25rem
+    }
+
+    .la-footer-brand {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -.02em
+    }
+
+    .la-footer-brand span {
+      color: #60a5fa
+    }
+
+    .la-footer-desc {
+      max-width: 420px;
+      color: #a0aec7;
+      font-size: .95rem;
+      line-height: 1.62;
+      margin-top: .75rem
+    }
+
+    .la-footer-grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 1.4fr) 1fr 1fr 1fr;
+      gap: 1.25rem
+    }
+
+    .la-footer-brand-col {
+      padding-right: .5rem
+    }
+
+    .la-footer-title {
+      font-size: .69rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #6f7f98;
+      font-weight: 700;
+      margin-bottom: .9rem
+    }
+
+    .la-footer-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: .35rem
+    }
+
+    .la-footer-link,
+    .la-footer-text {
+      font-size: 1.02rem;
+      line-height: 1.6;
+      color: #7f8ca4;
+      text-decoration: none;
+      transition: color .25s ease
+    }
+
+    .la-footer-link:hover {
+      color: #e2e8f0
+    }
+
+    .la-footer-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .8rem;
+      padding-top: 1rem;
+      margin-top: 2rem;
+      border-top: 1px solid rgba(148, 163, 184, .14)
+    }
+
+    .la-footer-copy {
+      font-size: 1.02rem;
+      color: #6d7b94
+    }
+
+    .la-status {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: 1.02rem;
+      color: #22c55e
+    }
+
+    .la-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, .75);
+      box-shadow: 0 0 14px rgba(34, 197, 94, .45)
+    }
+
+    @media (min-width:1024px) {
+      .la-getstarted-main {
+        padding-top: 5.25rem
+      }
+    }
+
+    @media (max-width:960px) {
+      .la-cta-btn {
+        font-size: .86rem;
+        padding: .74rem 1.1rem
+      }
+
+      .la-footer-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.6rem 1rem
+      }
+
+      .la-footer-bottom {
+        flex-direction: column;
+        align-items: flex-start
+      }
+    }
+
+    @media (max-width:640px) {
+      .la-subtext {
+        font-size: .63rem
+      }
+
+      .la-line-group {
+        height: 240px
+      }
+
+      .la-footer-core {
+        padding-top: 205px
+      }
+
+      .la-footer-grid {
+        grid-template-columns: 1fr
+      }
+
+      .la-footer-link,
+      .la-footer-text,
+      .la-footer-copy,
+      .la-status {
+        font-size: .9rem
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===== MOUSE GLOW ===== -->
+  <div id="mouse-glow" class="mouse-glow"></div>
+
+  <!-- ===== AURORA BACKGROUND ===== -->
+  <div class="aurora">
+    <div class="aurora-blob" style="--ao:0.7"></div>
+    <div class="aurora-blob" style="--ao:0.5"></div>
+    <div class="aurora-blob" style="--ao:0.4"></div>
+    <div class="aurora-blob" style="--ao:0.35"></div>
+    <div class="aurora-blob" style="--ao:0.45"></div>
+  </div>
+  <div class="mesh-grid"></div>
+
+  <!-- ===== NAVIGATION ===== -->
+  <nav id="navbar" class="fixed top-0 left-0 right-0 z-50 transition-all duration-500">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <a href="#" class="flex items-center gap-3 shrink-0 group">
+          <div
+            class="logo-icon w-11 h-11 rounded-xl bg-gradient-to-br from-accent/20 to-indigo-500/20 border border-accent/25 flex items-center justify-center group-hover:border-accent/50 transition-all duration-300">
+            <svg class="logo-svg" width="28" height="22" viewBox="0 0 100 80">
+              <path d="M6,4 L18,4 L18,58 L46,58 L46,70 L6,70 Z" fill="currentColor" />
+              <path d="M42,70 L62,4 L70,4 L90,70 L78,70 L73,52 L59,52 L54,70 Z M61,42 L66,18 L71,42 Z"
+                fill="currentColor" fill-rule="evenodd" />
+              <circle cx="66" cy="32" r="3.2" fill="#307ae8" />
+            </svg>
+          </div>
+          <span class="logo-text text-xl font-display font-bold tracking-tight transition-colors duration-500">Lift<span
+              class="text-accent">Audit</span></span>
+        </a>
+
+        <!-- Desktop Nav -->
+        <div class="hidden lg:flex items-center gap-1">
+
+          <!-- Dropdown: Возможности -->
+          <div class="nav-dd-wrap">
+            <button class="nav-dd-trigger" aria-expanded="false" aria-haspopup="true">
+              Возможности
+              <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="nav-dd-panel nav-dd-panel--wide" role="menu">
+              <div class="nav-dd-cols">
+                <!-- Left: feature items -->
+                <div class="nav-dd-col-main">
+                  <div class="nav-dd-section-head">Функции платформы</div>
+                  <div class="nav-dd-grid">
+                    <a href="#features" class="nav-dd-item" role="menuitem">
+                      <div class="nav-dd-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <line x1="10" y1="9" x2="8" y2="9" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="nav-dd-title">OCR-распознавание</div>
+                        <div class="nav-dd-desc">Автоматическое считывание данных из PDF и фото</div>
+                      </div>
+                    </a>
+                    <a href="#features" class="nav-dd-item" role="menuitem">
+                      <div class="nav-dd-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M9 11l3 3L22 4" />
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="nav-dd-title">19 критериев ТР ТС 011</div>
+                        <div class="nav-dd-desc">Полная проверка по всем нормативным требованиям</div>
+                      </div>
+                    </a>
+                    <a href="#features" class="nav-dd-item" role="menuitem">
+                      <div class="nav-dd-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="2" y="5" width="20" height="14" rx="2" />
+                          <line x1="2" y1="10" x2="22" y2="10" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="nav-dd-title">Паспорта лифтов</div>
+                        <div class="nav-dd-desc">Контроль сроков службы и освидетельствований</div>
+                      </div>
+                    </a>
+                    <a href="#features" class="nav-dd-item" role="menuitem">
+                      <div class="nav-dd-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                          <rect x="8" y="2" width="8" height="4" rx="1" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="nav-dd-title">Акты и протоколы</div>
+                        <div class="nav-dd-desc">Проверка периодичности и корректности актов</div>
+                      </div>
+                    </a>
+                    <a href="#features" class="nav-dd-item" role="menuitem">
+                      <div class="nav-dd-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="nav-dd-title">PDF-отчёты</div>
+                        <div class="nav-dd-desc">Готовые отчеты для контролирующих органов</div>
+                      </div>
+                    </a>
+                    <a href="#features" class="nav-dd-item" role="menuitem">
+                      <div class="nav-dd-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="nav-dd-title">История аудитов</div>
+                        <div class="nav-dd-desc">Журнал всех проверок с детализацией</div>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+                <!-- Right: featured case + resources -->
+                <div class="nav-dd-col-side">
+                  <div class="nav-dd-section-head">Кейс нарушения</div>
+                  <div class="nav-dd-featured">
+                    <div class="nav-dd-featured-badge">⚠ Штраф · 80 000 ₽</div>
+                    <div class="nav-dd-featured-title">МУП «ЖКУ» — просроченный акт ОТ</div>
+                    <div class="nav-dd-featured-meta">Акт технического освидетельствования лифта просрочен на 14
+                      месяцев. Нарушение ч. 1 ст. 9.1 КоАП РФ.</div>
+                  </div>
+                  <div class="nav-dd-section-head">Ресурсы</div>
+                  <a href="#criteria" class="nav-dd-resource-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 11l3 3L22 4" />
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                    19 критериев ТР ТС 011
+                  </a>
+                  <a href="#pricing" class="nav-dd-resource-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    Тарифы и стоимость
+                  </a>
+                  <a href="#contact" class="nav-dd-resource-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    Связаться с нами
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dropdown: Как это работает -->
+          <div class="nav-dd-wrap">
+            <button class="nav-dd-trigger" aria-expanded="false" aria-haspopup="true">
+              Как это работает
+              <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="nav-dd-panel nav-dd-panel--narrow" role="menu">
+              <div class="nav-dd-inner">
+                <a href="#how-it-works" class="nav-dd-item" role="menuitem">
+                  <div class="nav-dd-icon nav-dd-icon--step">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="nav-dd-title">1. Загрузите документы</div>
+                    <div class="nav-dd-desc">PDF, фото и сканы паспортов лифтов</div>
+                  </div>
+                </a>
+                <a href="#how-it-works" class="nav-dd-item" role="menuitem">
+                  <div class="nav-dd-icon nav-dd-icon--step">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="nav-dd-title">2. Автоматический анализ</div>
+                    <div class="nav-dd-desc">Система проверяет документы за секунды</div>
+                  </div>
+                </a>
+                <a href="#how-it-works" class="nav-dd-item" role="menuitem">
+                  <div class="nav-dd-icon nav-dd-icon--step">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="nav-dd-title">3. Получите отчёт</div>
+                    <div class="nav-dd-desc">Детальный отчёт с рекомендациями по устранению нарушений</div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plain links -->
+          <a href="#criteria" class="nav-plain-link">Критерии</a>
+          <a href="#pricing" class="nav-plain-link">Тарифы</a>
+          <a href="#contact" class="nav-plain-link">Контакты</a>
+
+          <!-- Dropdown: Кабинет -->
+          <div class="nav-dd-wrap">
+            <button class="nav-dd-trigger nav-dd-trigger--cabinet" aria-expanded="false" aria-haspopup="true">
+              Кабинет
+              <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div class="nav-dd-panel nav-dd-panel--auth nav-dd-panel--right" role="menu">
+              <div class="nav-dd-cols">
+                <!-- Left: description -->
+                <div class="nav-dd-auth-left">
+                  <div class="nav-dd-auth-left-title">Вход в кабинет</div>
+                  <p>Для создания кабинета используйте один из представленных способов</p>
+                </div>
+                <!-- Right: auth options -->
+                <div class="nav-dd-auth-right">
+                  <a href="#" class="nav-dd-auth-item">
+                    <div class="nav-dd-auth-icon" style="background:rgba(252,63,29,0.12);color:#FC3F1D">Я</div>
+                    <div>
+                      <div class="nav-dd-auth-name">Яндекс почта</div>
+                      <div class="nav-dd-auth-desc">Войти через Яндекс ID</div>
+                    </div>
+                  </a>
+                  <a href="#" class="nav-dd-auth-item">
+                    <div class="nav-dd-auth-icon" style="background:rgba(0,95,249,0.12);color:#4a9eff">М</div>
+                    <div>
+                      <div class="nav-dd-auth-name">Mail почта</div>
+                      <div class="nav-dd-auth-desc">Войти через Mail.ru аккаунт</div>
+                    </div>
+                  </a>
+                  <a href="#" class="nav-dd-auth-item">
+                    <div class="nav-dd-auth-icon" style="background:rgba(240,91,47,0.12);color:#F05B2F">R</div>
+                    <div>
+                      <div class="nav-dd-auth-name">Рамблер почта</div>
+                      <div class="nav-dd-auth-desc">Войти через Rambler аккаунт</div>
+                    </div>
+                  </a>
+                  <a href="#" class="nav-dd-auth-item">
+                    <div class="nav-dd-auth-icon" style="background:rgba(0,119,255,0.12);color:#5b9eff;font-size:10px">
+                      VK</div>
+                    <div>
+                      <div class="nav-dd-auth-name">ВКонтакте</div>
+                      <div class="nav-dd-auth-desc">Войти через VK аккаунт</div>
+                    </div>
+                  </a>
+                  <a href="#" class="nav-dd-auth-item">
+                    <div class="nav-dd-auth-icon" style="background:rgba(100,116,139,0.12);color:#94a3b8">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div class="nav-dd-auth-name">Как организация</div>
+                      <div class="nav-dd-auth-desc">Войти как юридическое лицо</div>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <a href="#contact" class="hidden sm:inline-flex btn-primary btn-ripple text-sm px-6 py-3 rounded-xl">Начать
+            аудит</a>
+          <button id="mobile-toggle" class="lg:hidden text-gray-400 hover:text-white p-2 transition-colors"
+            aria-label="Menu">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div id="mobile-menu"
+    class="mobile-menu fixed top-0 right-0 w-80 h-full z-50 bg-dark-900/98 backdrop-blur-2xl border-l border-white/5 p-8">
+    <button id="mobile-close" class="absolute top-5 right-5 text-gray-400 hover:text-white p-2 transition-colors">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+    <nav class="flex flex-col gap-8 mt-20">
+      <a href="#features"
+        class="text-xl text-gray-300 hover:text-white transition-colors mobile-link font-display">Возможности</a>
+      <a href="#how-it-works"
+        class="text-xl text-gray-300 hover:text-white transition-colors mobile-link font-display">Как это работает</a>
+      <a href="#criteria"
+        class="text-xl text-gray-300 hover:text-white transition-colors mobile-link font-display">Критерии</a>
+      <a href="#pricing"
+        class="text-xl text-gray-300 hover:text-white transition-colors mobile-link font-display">Тарифы</a>
+      <a href="#contact"
+        class="text-xl text-gray-300 hover:text-white transition-colors mobile-link font-display">Контакты</a>
+      <a href="#contact" class="btn-primary text-center text-sm px-6 py-4 rounded-xl mt-4">Начать аудит</a>
+    </nav>
+  </div>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero-section relative min-h-screen flex items-center pt-16 overflow-hidden">
+    <!-- Light gradient that scrolls away -->
+    <div class="hero-gradient"></div>
+    <!-- Hero particles container -->
+    <div id="hero-particles" class="absolute inset-0 pointer-events-none z-0"></div>
+
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 py-16 lg:py-24 w-full relative z-10">
+      <div class="grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+
+        <!-- Left col: 7 -->
+        <div class="lg:col-span-7">
+          <div class="reveal">
+            <div class="inline-flex items-center gap-2.5 glass rounded-full px-5 py-2 text-xs tracking-wide mb-8">
+              <span class="relative flex h-2 w-2">
+                <span
+                  class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span class="hero-badge-text">Платформа для управляющих компаний</span>
+            </div>
+          </div>
+
+          <h1
+            class="reveal font-display text-[2.75rem] sm:text-6xl lg:text-7xl font-bold leading-[1.05] tracking-tight mb-8">
+            <span id="hero-animated-text" class="hero-animated-text">
+              <span id="hero-shadow-text" class="hero-shadow-text" aria-hidden="true"></span>
+              <span id="hero-main-text" class="hero-main-text"></span>
+            </span>
+          </h1>
+
+          <p class="reveal hero-subtitle text-lg lg:text-xl mb-10 max-w-xl leading-relaxed">
+            Загрузите документы — получите полный отчет о соответствии. <span class="hero-highlight">Снизьте риск
+              штрафов</span> до 350&nbsp;000&nbsp;&#8381; и приостановки деятельности.
+          </p>
+
+          <div class="reveal flex flex-wrap gap-4 mb-12">
+            <a href="#contact" class="btn-primary btn-ripple text-base inline-flex items-center gap-3">
+              Начать аудит
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </a>
+            <a href="#how-it-works" class="btn-ghost text-base inline-flex items-center gap-3">
+              Узнать больше
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </a>
+          </div>
+
+          <!-- Floating badges with glow -->
+          <div class="reveal flex flex-wrap gap-3">
+            <div
+              class="float-1 glass-light rounded-2xl px-5 py-2.5 text-sm flex items-center gap-2.5 shadow-lg shadow-blue-500/5">
+              <div class="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-accent-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </div>
+              <span class="text-gray-300 font-medium">OCR</span>
+            </div>
+            <div
+              class="float-2 glass-light rounded-2xl px-5 py-2.5 text-sm flex items-center gap-2.5 shadow-lg shadow-purple-500/5">
+              <div class="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <span class="text-gray-300 font-medium">AI-анализ</span>
+            </div>
+            <div
+              class="float-3 glass-light rounded-2xl px-5 py-2.5 text-sm flex items-center gap-2.5 shadow-lg shadow-emerald-500/5">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <span class="text-gray-300 font-medium">19 критериев</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right col: 5 — 3D Sphere -->
+        <div class="lg:col-span-5 reveal">
+          <div class="sphere-shell relative flex items-center justify-center">
+            <div class="sphere-wrap">
+              <div class="sphere-halo" aria-hidden="true"></div>
+              <div class="sphere-background"></div>
+              <div class="sphere-highlight"></div>
+              <canvas id="sphere-canvas" width="736" height="736" class="sphere-canvas"
+                style="max-width:100%;height:auto;cursor:grab"></canvas>
+              <div id="sphere-prompt" class="sphere-prompt" aria-hidden="true">
+                <div class="sphere-prompt-header">
+                  <img id="sphere-prompt-platform" class="sphere-prompt-platform" src="" alt="Platform logo">
+                  <p id="sphere-prompt-text" class="sphere-prompt-text"></p>
+                </div>
+                <div class="sphere-prompt-body">
+                  <p class="sphere-prompt-title">Аудит лифтов</p>
+                  <div class="sphere-prompt-stats">
+                    <div>
+                      <p class="sphere-prompt-label">Нарушений</p>
+                      <div class="sphere-prompt-pair">
+                        <span id="sphere-visibility-value" class="sphere-prompt-value"></span>
+                        <span id="sphere-visibility-delta" class="sphere-prompt-delta"></span>
+                      </div>
+                    </div>
+                    <div>
+                      <p class="sphere-prompt-label">Соответствие</p>
+                      <div class="sphere-prompt-pair">
+                        <span id="sphere-sentiment-value" class="sphere-prompt-value"></span>
+                        <span id="sphere-sentiment-delta" class="sphere-prompt-delta"></span>
+                      </div>
+                    </div>
+                    <div>
+                      <p class="sphere-prompt-label">Штраф</p>
+                      <div class="sphere-prompt-pair">
+                        <span id="sphere-position-value" class="sphere-prompt-value"></span>
+                        <span id="sphere-position-delta" class="sphere-prompt-delta"></span>
+                      </div>
+                    </div>
+                    <div>
+                      <p class="sphere-prompt-label">Статус</p>
+                      <div id="sphere-prompt-mentioned" class="sphere-prompt-mentioned"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero bottom fade -->
+    <div
+      class="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-dark-950 to-transparent pointer-events-none z-10">
+    </div>
+  </section>
+
+  <!-- ===== METRICS BAR ===== -->
+  <section class="relative z-10 py-16">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="glass rounded-2xl p-8 lg:p-10">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
+          <div class="reveal text-center">
+            <div class="text-4xl lg:text-5xl font-display font-bold mb-2">
+              <span class="gradient-text" data-counter-main="500">0</span><span class="gradient-text">+</span>
+            </div>
+            <div class="text-sm text-gray-500">проверенных лифтов</div>
+          </div>
+          <div class="reveal text-center">
+            <div class="text-4xl lg:text-5xl font-display font-bold mb-2">
+              <span class="gradient-text" data-counter-main="98">0</span><span class="gradient-text">%</span>
+            </div>
+            <div class="text-sm text-gray-500">точность OCR</div>
+          </div>
+          <div class="reveal text-center">
+            <div class="text-4xl lg:text-5xl font-display font-bold mb-2">
+              <span class="gradient-text" data-counter-main="24">0</span><span class="gradient-text">ч</span>
+            </div>
+            <div class="text-sm text-gray-500">до готового отчета</div>
+          </div>
+          <div class="reveal text-center">
+            <div class="text-4xl lg:text-5xl font-display font-bold mb-2">
+              <span class="gradient-text" data-counter-main="19">0</span>
+            </div>
+            <div class="text-sm text-gray-500">критериев проверки</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Marquee — Supabase style, clipped to stats block width -->
+      <div class="marquee-outer mt-10">
+        <div class="marquee-track">
+          <!-- Copy 1 -->
+          <!-- Document: page body filled solid, fold corner stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path fill="currentColor" stroke="none" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>ТР ТС 011/2011</span>
+          <span class="marquee-sep">·</span>
+          <!-- Shield: single closed shape — filled solid -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="none">
+              <path fill="currentColor" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>Ростехнадзор</span>
+          <span class="marquee-sep">·</span>
+          <!-- Award: medal circle filled, ribbon path stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle fill="currentColor" stroke="none" cx="12" cy="8" r="6" />
+              <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
+            </svg>ГОСТ Р 53780</span>
+          <span class="marquee-sep">·</span>
+          <!-- Book open: left page filled, right page stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path fill="currentColor" stroke="none" d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+            </svg>ПП РФ №1744</span>
+          <span class="marquee-sep">·</span>
+          <!-- Alert triangle: body filled, exclamation lines stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="none">
+              <path fill="currentColor" fill-rule="evenodd"
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M11.3 8.5h1.4v5.5h-1.4z M11.3 16.5h1.4v1.6h-1.4z" />
+            </svg>КоАП ст. 9.1</span>
+          <span class="marquee-sep">·</span>
+          <!-- Home: walls filled, door opening stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path fill="currentColor" fill-rule="evenodd" stroke="none"
+                d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 12h6v10H9z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>ФЗ №116-ФЗ</span>
+          <span class="marquee-sep">·</span>
+          <!-- Wrench: single closed silhouette — filled solid -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="none">
+              <path fill="currentColor"
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg>ФНП №533</span>
+          <span class="marquee-sep">·</span>
+          <!-- Credit card: card body filled, stripe line stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect fill="currentColor" stroke="none" x="1" y="4" width="22" height="16" rx="2" ry="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>Паспорт лифта</span>
+          <span class="marquee-sep">·</span>
+          <!-- Clipboard: top clip filled, body outline + check stroke only -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect fill="currentColor" stroke="none" x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <polyline points="9 11 12 14 15 11" />
+            </svg>Акт освидетельствования</span>
+          <span class="marquee-sep">·</span>
+          <!-- Globe: circle light-fill so meridians remain visible as strokes -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle fill="currentColor" fill-opacity="0.22" cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>EN 81-20</span>
+          <span class="marquee-sep">·</span>
+          <!-- Copy 2 -->
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path fill="currentColor" stroke="none" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>ТР ТС 011/2011</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="none">
+              <path fill="currentColor" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>Ростехнадзор</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle fill="currentColor" stroke="none" cx="12" cy="8" r="6" />
+              <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
+            </svg>ГОСТ Р 53780</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path fill="currentColor" stroke="none" d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+            </svg>ПП РФ №1744</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="none">
+              <path fill="currentColor" fill-rule="evenodd"
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M11.3 8.5h1.4v5.5h-1.4z M11.3 16.5h1.4v1.6h-1.4z" />
+            </svg>КоАП ст. 9.1</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path fill="currentColor" fill-rule="evenodd" stroke="none"
+                d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 12h6v10H9z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>ФЗ №116-ФЗ</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="none">
+              <path fill="currentColor"
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg>ФНП №533</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect fill="currentColor" stroke="none" x="1" y="4" width="22" height="16" rx="2" ry="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>Паспорт лифта</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect fill="currentColor" stroke="none" x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <polyline points="9 11 12 14 15 11" />
+            </svg>Акт освидетельствования</span>
+          <span class="marquee-sep">·</span>
+          <span class="marquee-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle fill="currentColor" fill-opacity="0.22" cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>EN 81-20</span>
+          <span class="marquee-sep">·</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider glow-line max-w-7xl mx-auto"></div>
+
+  <!-- ===== PROBLEM SECTION ===== -->
+  <section class="relative z-10 py-24 lg:py-32 section-glow">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="text-center mb-20">
+        <div class="reveal">
+          <span
+            class="inline-flex items-center gap-2.5 bg-red-500/[0.07] border border-red-500/15 text-red-400/90 text-xs font-medium px-5 py-2 rounded-full mb-8 tracking-wide">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            Риски для управляющих компаний
+          </span>
+        </div>
+        <h2 class="reveal font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-5 tracking-tight">
+          <span class="heading-metallic">Штраф до</span> <span class="text-red-400">350&nbsp;000&nbsp;&#8381;</span>
+        </h2>
+        <p class="reveal text-lg lg:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          или приостановка деятельности до <span class="text-red-400 font-semibold">90&nbsp;суток</span> за нарушение
+          требований промышленной безопасности
+        </p>
+        <p class="reveal text-sm text-gray-600 mt-4">КоАП РФ, ст. 9.1.1</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        <!-- Manual -->
+        <div class="reveal glass rounded-2xl p-8 lg:p-10 relative overflow-hidden group">
+          <div
+            class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-red-500/40 via-red-500/20 to-transparent">
+          </div>
+          <div class="light-beam" style="animation-delay:-3s"></div>
+          <div class="flex items-center gap-4 mb-8">
+            <div
+              class="w-12 h-12 rounded-xl bg-red-500/[0.07] border border-red-500/10 flex items-center justify-center">
+              <svg class="w-5 h-5 text-red-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-display font-semibold text-gray-200">Ручной аудит</h3>
+          </div>
+          <ul class="space-y-4 text-sm text-gray-400">
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-red-500/40 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>От 2-3 недель на один объект</li>
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-red-500/40 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>Человеческий фактор — пропуск документов</li>
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-red-500/40 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>Нет единого реестра и отчетов</li>
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-red-500/40 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>Высокая стоимость экспертов</li>
+          </ul>
+        </div>
+
+        <!-- LiftAudit -->
+        <div class="reveal glass-card rounded-2xl p-8 lg:p-10 relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-accent via-purple-500 to-transparent">
+          </div>
+          <div class="light-beam" style="animation-delay:-5s"></div>
+          <div class="flex items-center gap-4 mb-8">
+            <div class="w-12 h-12 rounded-xl bg-accent/[0.07] border border-accent/15 flex items-center justify-center">
+              <svg class="w-5 h-5 text-accent-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-display font-semibold gradient-text-warm">LiftAudit</h3>
+          </div>
+          <ul class="space-y-4 text-sm text-gray-300">
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>Результат за 24 часа</li>
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>Автоматическое OCR — ничего не пропустит</li>
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>Единый дашборд + PDF-отчеты</li>
+            <li class="flex items-start gap-3"><svg class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none"
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>Прозрачное ценообразование</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider glow-line max-w-7xl mx-auto"></div>
+
+  <!-- ===== FEATURES BENTO GRID ===== -->
+  <section id="features" class="relative z-10 py-24 lg:py-32 section-glow">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="text-center mb-20">
+        <h2 class="reveal font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-5 tracking-tight heading-metallic">
+          Всё для <span class="gradient-text">аудита лифтов</span>
+        </h2>
+        <p class="reveal text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          Автоматизированная платформа полного цикла — от загрузки документов до готового отчета
+        </p>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+        <div class="reveal glass-card spotlight-card rounded-2xl p-7 lg:p-8 group relative overflow-hidden">
+          <div class="light-beam" style="animation-delay:-1s"></div>
+          <div
+            class="w-14 h-14 rounded-2xl bg-accent/[0.07] border border-accent/10 flex items-center justify-center mb-6 group-hover:border-accent/25 transition-colors duration-500">
+            <svg class="w-6 h-6 text-accent-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-semibold mb-3 text-gray-100">OCR-распознавание</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Автоматическое распознавание текста из сканов и фотографий.
+            Поддержка JPG, PNG, PDF.</p>
+        </div>
+
+        <div class="reveal glass-card spotlight-card rounded-2xl p-7 lg:p-8 group relative overflow-hidden">
+          <div class="light-beam" style="animation-delay:-3s"></div>
+          <div
+            class="w-14 h-14 rounded-2xl bg-purple-500/[0.07] border border-purple-500/10 flex items-center justify-center mb-6 group-hover:border-purple-500/25 transition-colors duration-500">
+            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-semibold mb-3 text-gray-100">19 критериев проверки</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Полная проверка по ТР ТС 011/2011 и ПП РФ №1744. Каждый
+            документ — OK, NOT OK или NO DATA.</p>
+        </div>
+
+        <div class="reveal glass-card spotlight-card rounded-2xl p-7 lg:p-8 group relative overflow-hidden">
+          <div class="light-beam" style="animation-delay:-5s"></div>
+          <div
+            class="w-14 h-14 rounded-2xl bg-emerald-500/[0.07] border border-emerald-500/10 flex items-center justify-center mb-6 group-hover:border-emerald-500/25 transition-colors duration-500">
+            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-semibold mb-3 text-gray-100">Отчет Web + PDF</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Интерактивный дашборд и PDF с детализацией по каждому
+            критерию и рекомендациями.</p>
+        </div>
+
+        <div class="reveal glass-card spotlight-card rounded-2xl p-7 lg:p-8 group relative overflow-hidden">
+          <div class="light-beam" style="animation-delay:-2s"></div>
+          <div
+            class="w-14 h-14 rounded-2xl bg-blue-500/[0.07] border border-blue-500/10 flex items-center justify-center mb-6 group-hover:border-blue-500/25 transition-colors duration-500">
+            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-semibold mb-3 text-gray-100">Личный кабинет УК</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Все объекты и лифты из единого кабинета. Полная история
+            проверок и документов.</p>
+        </div>
+
+        <div class="reveal glass-card spotlight-card rounded-2xl p-7 lg:p-8 group relative overflow-hidden">
+          <div class="light-beam" style="animation-delay:-4s"></div>
+          <div
+            class="w-14 h-14 rounded-2xl bg-amber-500/[0.07] border border-amber-500/10 flex items-center justify-center mb-6 group-hover:border-amber-500/25 transition-colors duration-500">
+            <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-semibold mb-3 text-gray-100">Выставление счетов</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Автоматическое формирование счетов. Прозрачная тарификация за
+            каждый проверенный лифт.</p>
+        </div>
+
+        <div class="reveal glass-card spotlight-card rounded-2xl p-7 lg:p-8 group relative overflow-hidden">
+          <div class="light-beam" style="animation-delay:-6s"></div>
+          <div
+            class="w-14 h-14 rounded-2xl bg-cyan-500/[0.07] border border-cyan-500/10 flex items-center justify-center mb-6 group-hover:border-cyan-500/25 transition-colors duration-500">
+            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-display font-semibold mb-3 text-gray-100">Уведомления</h3>
+          <p class="text-sm text-gray-500 leading-relaxed">Email-уведомления о статусе проверки и приближении сроков
+            пересмотра документов.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider glow-line max-w-7xl mx-auto"></div>
+
+  <!-- ===== HOW IT WORKS ===== -->
+  <section id="how-it-works" class="relative z-10 py-24 lg:py-32 section-glow">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="text-center mb-20">
+        <h2 class="reveal font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-5 tracking-tight heading-metallic">
+          Как это <span class="gradient-text">работает</span>
+        </h2>
+        <p class="reveal text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          Четыре простых шага от загрузки документов до готового отчета
+        </p>
+      </div>
+
+      <div class="max-w-3xl mx-auto space-y-0">
+        <!-- Step 1 -->
+        <div class="reveal flex gap-7 relative pb-12">
+          <div class="shrink-0 relative">
+            <div
+              class="w-14 h-14 rounded-2xl bg-accent/[0.08] border border-accent/20 flex items-center justify-center font-display font-bold text-lg text-accent-light">
+              1</div>
+            <div class="step-connector"></div>
+          </div>
+          <div>
+            <h3 class="text-xl font-display font-semibold mb-2 text-gray-100">Регистрация и добавление лифтов</h3>
+            <p class="text-sm text-gray-500 leading-relaxed">Создайте аккаунт управляющей компании, добавьте объекты и
+              лифты с указанием адресов и заводских номеров.</p>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="reveal flex gap-7 relative pb-12">
+          <div class="shrink-0 relative">
+            <div
+              class="w-14 h-14 rounded-2xl bg-purple-500/[0.08] border border-purple-500/20 flex items-center justify-center font-display font-bold text-lg text-purple-400">
+              2</div>
+            <div class="step-connector" style="background:linear-gradient(to bottom,rgba(139,92,246,0.3),transparent)">
+            </div>
+          </div>
+          <div>
+            <h3 class="text-xl font-display font-semibold mb-2 text-gray-100">Загрузка документов</h3>
+            <p class="text-sm text-gray-500 leading-relaxed">Загрузите сканы или фотографии документов в формате JPG,
+              PNG или PDF. Система принимает документы любого качества.</p>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="reveal flex gap-7 relative pb-12">
+          <div class="shrink-0 relative">
+            <div
+              class="w-14 h-14 rounded-2xl bg-emerald-500/[0.08] border border-emerald-500/20 flex items-center justify-center font-display font-bold text-lg text-emerald-400">
+              3</div>
+            <div class="step-connector" style="background:linear-gradient(to bottom,rgba(16,185,129,0.3),transparent)">
+            </div>
+          </div>
+          <div>
+            <h3 class="text-xl font-display font-semibold mb-2 text-gray-100">Автоматическая OCR-проверка</h3>
+            <p class="text-sm text-gray-500 leading-relaxed">Система распознает текст, извлекает данные и проверяет
+              соответствие по всем 19 критериям.</p>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="reveal flex gap-7">
+          <div class="shrink-0">
+            <div
+              class="w-14 h-14 rounded-2xl bg-amber-500/[0.08] border border-amber-500/20 flex items-center justify-center font-display font-bold text-lg text-amber-400 shadow-lg shadow-amber-500/10">
+              4</div>
+          </div>
+          <div>
+            <h3 class="text-xl font-display font-semibold mb-2 text-gray-100">Получение отчета и рекомендаций</h3>
+            <p class="text-sm text-gray-500 leading-relaxed">Скачайте PDF-отчет или просмотрите результаты в дашборде.
+              Получите конкретные рекомендации.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider glow-line max-w-7xl mx-auto"></div>
+
+  <!-- ===== CRITERIA ===== -->
+  <section id="criteria" class="relative z-10 py-24 lg:py-32 section-glow">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="text-center mb-20">
+        <h2 class="reveal font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-5 tracking-tight heading-metallic">
+          Критерии <span class="gradient-text">проверки</span>
+        </h2>
+        <p class="reveal text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          Ключевые критерии MVP — каждый документ получает статус соответствия
+        </p>
+      </div>
+
+      <div class="max-w-3xl mx-auto space-y-3">
+        <div class="reveal criteria-item glass-card rounded-2xl overflow-hidden cursor-pointer"
+          onclick="toggleCriteria(this)">
+          <div class="flex items-center justify-between p-5 lg:p-6">
+            <div class="flex items-center gap-4"><span class="badge-ok">OK</span><span
+                class="font-display font-medium text-gray-200">Договор на обслуживание лифта</span></div>
+            <svg class="criteria-chevron w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div class="criteria-content px-5 lg:px-6 pb-5 lg:pb-6">
+            <p class="text-sm text-gray-500 leading-relaxed">Проверка наличия действующего договора на техническое
+              обслуживание лифта со специализированной организацией. Извлечение сроков действия, реквизитов сторон и
+              номера договора.</p>
+          </div>
+        </div>
+
+        <div class="reveal criteria-item glass-card rounded-2xl overflow-hidden cursor-pointer"
+          onclick="toggleCriteria(this)">
+          <div class="flex items-center justify-between p-5 lg:p-6">
+            <div class="flex items-center gap-4"><span class="badge-ok">OK</span><span
+                class="font-display font-medium text-gray-200">Паспорт лифта</span></div>
+            <svg class="criteria-chevron w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div class="criteria-content px-5 lg:px-6 pb-5 lg:pb-6">
+            <p class="text-sm text-gray-500 leading-relaxed">Проверка наличия и полноты паспорта лифта: производитель,
+              год установки, грузоподъемность, заводской номер, результаты технических освидетельствований.</p>
+          </div>
+        </div>
+
+        <div class="reveal criteria-item glass-card rounded-2xl overflow-hidden cursor-pointer"
+          onclick="toggleCriteria(this)">
+          <div class="flex items-center justify-between p-5 lg:p-6">
+            <div class="flex items-center gap-4"><span class="badge-not-ok">NOT OK</span><span
+                class="font-display font-medium text-gray-200">Страховой полис</span></div>
+            <svg class="criteria-chevron w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div class="criteria-content px-5 lg:px-6 pb-5 lg:pb-6">
+            <p class="text-sm text-gray-500 leading-relaxed">Проверка наличия полиса обязательного страхования
+              ответственности владельца опасного объекта. Контроль сроков действия и суммы страхового покрытия.</p>
+          </div>
+        </div>
+
+        <div class="reveal criteria-item glass-card rounded-2xl overflow-hidden cursor-pointer"
+          onclick="toggleCriteria(this)">
+          <div class="flex items-center justify-between p-5 lg:p-6">
+            <div class="flex items-center gap-4"><span class="badge-no-data">NO DATA</span><span
+                class="font-display font-medium text-gray-200">Акт технического освидетельствования</span></div>
+            <svg class="criteria-chevron w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div class="criteria-content px-5 lg:px-6 pb-5 lg:pb-6">
+            <p class="text-sm text-gray-500 leading-relaxed">Проверка наличия акта последнего технического
+              освидетельствования. Контроль периодичности и соответствия заключения нормативным требованиям.</p>
+          </div>
+        </div>
+
+        <div class="reveal criteria-item glass-card rounded-2xl overflow-hidden cursor-pointer"
+          onclick="toggleCriteria(this)">
+          <div class="flex items-center justify-between p-5 lg:p-6">
+            <div class="flex items-center gap-4"><span class="badge-ok">OK</span><span
+                class="font-display font-medium text-gray-200">Декларация соответствия ТР ТС</span></div>
+            <svg class="criteria-chevron w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          <div class="criteria-content px-5 lg:px-6 pb-5 lg:pb-6">
+            <p class="text-sm text-gray-500 leading-relaxed">Проверка декларации о соответствии требованиям ТР ТС
+              011/2011 «Безопасность лифтов». Верификация номера и сроков действия.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal text-center mt-10">
+        <span class="text-sm text-gray-600">И ещё 14 критериев в полной проверке</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider glow-line max-w-7xl mx-auto"></div>
+
+  <!-- ===== DASHBOARD PREVIEW ===== -->
+  <section class="relative z-10 py-24 lg:py-32 section-glow">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="text-center mb-20">
+        <h2 class="reveal font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-5 tracking-tight heading-metallic">
+          Личный <span class="gradient-text">кабинет</span>
+        </h2>
+        <p class="reveal text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          Все лифты, документы и результаты проверок — в одном интерфейсе
+        </p>
+      </div>
+
+      <div class="reveal max-w-5xl mx-auto relative">
+        <div
+          class="absolute -inset-8 bg-gradient-to-r from-accent/5 via-purple-500/5 to-indigo-500/5 rounded-3xl blur-3xl">
+        </div>
+        <div class="relative glass-light rounded-3xl p-5 sm:p-8 overflow-hidden">
+          <div class="light-beam"></div>
+          <!-- Chrome bar -->
+          <div class="flex items-center gap-3 mb-6">
+            <div class="flex gap-1.5">
+              <div class="w-3 h-3 rounded-full bg-white/[0.06]"></div>
+              <div class="w-3 h-3 rounded-full bg-white/[0.06]"></div>
+              <div class="w-3 h-3 rounded-full bg-white/[0.06]"></div>
+            </div>
+            <div class="flex-1 max-w-xs bg-white/[0.03] rounded-lg px-4 py-1.5 text-[11px] text-gray-600 tracking-wide">
+              liftaudit.ru/dashboard</div>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-5">
+            <!-- Sidebar -->
+            <div class="space-y-4">
+              <div class="bg-white/[0.02] rounded-xl p-4 border border-white/[0.03]">
+                <div class="text-[10px] text-gray-600 mb-3 uppercase tracking-widest font-medium">Объекты</div>
+                <div class="space-y-1.5">
+                  <div
+                    class="flex items-center gap-2 bg-accent/[0.07] rounded-lg px-3 py-2.5 text-sm text-accent-light border border-accent/15">
+                    <svg class="w-4 h-4 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    ул. Ленина, 42
+                  </div>
+                  <div
+                    class="flex items-center gap-2 bg-white/[0.01] rounded-lg px-3 py-2.5 text-sm text-gray-500 hover:bg-white/[0.03] transition-colors cursor-pointer">
+                    <svg class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    пр. Мира, 15
+                  </div>
+                  <div
+                    class="flex items-center gap-2 bg-white/[0.01] rounded-lg px-3 py-2.5 text-sm text-gray-500 hover:bg-white/[0.03] transition-colors cursor-pointer">
+                    <svg class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    ул. Гагарина, 8
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Main -->
+            <div class="lg:col-span-2 space-y-4">
+              <div class="grid grid-cols-3 gap-3">
+                <div class="bg-emerald-500/[0.05] border border-emerald-500/10 rounded-xl p-4 text-center">
+                  <div class="text-2xl font-bold font-display text-emerald-400 dashboard-counter" data-target="14">0
+                  </div>
+                  <div class="text-[10px] text-emerald-400/40 mt-1 uppercase tracking-widest">OK</div>
+                </div>
+                <div class="bg-red-500/[0.05] border border-red-500/10 rounded-xl p-4 text-center">
+                  <div class="text-2xl font-bold font-display text-red-400 dashboard-counter" data-target="3">0</div>
+                  <div class="text-[10px] text-red-400/40 mt-1 uppercase tracking-widest">NOT OK</div>
+                </div>
+                <div class="bg-amber-500/[0.05] border border-amber-500/10 rounded-xl p-4 text-center">
+                  <div class="text-2xl font-bold font-display text-amber-400 dashboard-counter" data-target="2">0</div>
+                  <div class="text-[10px] text-amber-400/40 mt-1 uppercase tracking-widest">NO DATA</div>
+                </div>
+              </div>
+
+              <div class="bg-white/[0.02] rounded-xl p-5 border border-white/[0.03] space-y-4">
+                <div class="text-[10px] text-gray-600 uppercase tracking-widest font-medium">Прогресс по лифтам</div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1.5"><span class="text-gray-400">Лифт #1247</span><span
+                      class="text-emerald-400">100%</span></div>
+                  <div class="h-1.5 bg-white/[0.03] rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500/80 rounded-full dashboard-progress" data-width="100"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1.5"><span class="text-gray-400">Лифт #1248</span><span
+                      class="text-emerald-400">100%</span></div>
+                  <div class="h-1.5 bg-white/[0.03] rounded-full overflow-hidden">
+                    <div class="h-full bg-emerald-500/80 rounded-full dashboard-progress" data-width="100"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1.5"><span class="text-gray-400">Лифт #1249</span><span
+                      class="text-accent-light">73%</span></div>
+                  <div class="h-1.5 bg-white/[0.03] rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-accent to-purple-500 rounded-full dashboard-progress"
+                      data-width="73"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1.5"><span class="text-gray-400">Лифт #1250</span><span
+                      class="text-amber-400">В очереди</span></div>
+                  <div class="h-1.5 bg-white/[0.03] rounded-full overflow-hidden">
+                    <div class="h-full bg-amber-500/30 rounded-full dashboard-progress" data-width="0"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider glow-line max-w-7xl mx-auto"></div>
+
+  <!-- ===== PRICING ===== -->
+  <section id="pricing" class="relative z-10 py-24 lg:py-32 section-glow">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10">
+      <div class="text-center mb-20">
+        <h2 class="reveal font-display text-4xl sm:text-5xl lg:text-6xl font-bold mb-5 tracking-tight heading-metallic">
+          Прозрачные <span class="gradient-text">тарифы</span>
+        </h2>
+        <p class="reveal text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          Простая и понятная модель ценообразования
+        </p>
+      </div>
+
+      <div class="reveal max-w-lg mx-auto">
+        <div class="relative rounded-3xl overflow-hidden">
+          <div class="pricing-border rounded-3xl"></div>
+          <div class="relative glass-light rounded-3xl p-8 lg:p-12 z-10" style="background:rgba(10,10,18,0.95)">
+            <div class="text-center mb-10">
+              <span
+                class="inline-flex items-center gap-2 bg-accent/[0.08] text-accent-light text-xs font-medium px-4 py-1.5 rounded-full mb-6 tracking-wide">Единый
+                тариф</span>
+              <div class="flex items-baseline justify-center gap-1.5 mb-3">
+                <span class="text-5xl lg:text-6xl font-display font-bold text-white">13 400</span>
+                <span class="text-xl text-gray-500 font-display">&#8381;</span>
+              </div>
+              <p class="text-gray-500 text-sm">базовая стоимость за объект</p>
+              <div class="mt-3 text-sm text-gray-400"><span class="text-accent-light font-semibold">+ 11.20
+                  &#8381;</span> за каждый лифт</div>
+            </div>
+
+            <div class="space-y-4 mb-10">
+              <div class="flex items-center gap-3.5 text-sm text-gray-300">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><svg
+                    class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg></div>
+                Проверка по всем 19 критериям
+              </div>
+              <div class="flex items-center gap-3.5 text-sm text-gray-300">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><svg
+                    class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg></div>
+                OCR-распознавание документов
+              </div>
+              <div class="flex items-center gap-3.5 text-sm text-gray-300">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><svg
+                    class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg></div>
+                PDF-отчет + веб-дашборд
+              </div>
+              <div class="flex items-center gap-3.5 text-sm text-gray-300">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><svg
+                    class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg></div>
+                Рекомендации по устранению
+              </div>
+              <div class="flex items-center gap-3.5 text-sm text-gray-300">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><svg
+                    class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg></div>
+                Результат в течение 24 часов
+              </div>
+              <div class="flex items-center gap-3.5 text-sm text-gray-300">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0"><svg
+                    class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg></div>
+                Доступ к личному кабинету
+              </div>
+            </div>
+
+            <a href="#contact"
+              class="btn-primary btn-ripple w-full py-4 rounded-xl text-base font-semibold text-white flex items-center justify-center gap-2">
+              Заказать аудит
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GET STARTED + FOOTER (Stack-style) ===== -->
+  <section id="contact" class="la-getstarted relative z-10">
+    <div class="la-getstarted-main">
+      <div class="inline-flex flex-col items-center justify-center mb-8 px-6 lg:px-0 relative z-10">
+        <span id="la-glow-bg" class="la-glow-bg"></span>
+        <span class="la-subtext">Платформа аудита лифтовой документации</span>
+        <h2 class="text-center max-w-2xl text-4xl md:text-6xl font-semibold mb-5 leading-[0.98] tracking-tight"
+          style="text-shadow: 0 0 30px rgba(130,170,255,0.35), 0 0 60px rgba(100,140,255,0.15)">
+          Защитите свою УК от штрафов<br>уже сегодня
+        </h2>
+        <span class="relative flex justify-center mt-2">
+          <div id="la-cta-shell" class="la-cta-shell">
+            <a href="#pricing" class="la-cta-btn">Начать аудит</a>
+          </div>
+          <div id="la-line-group" class="la-line-group" aria-hidden="true">
+            <span class="la-line"></span>
+            <span class="la-line la-line-blur-xl"></span>
+            <span class="la-line la-line-blur-sm"></span>
+          </div>
+        </span>
+      </div>
+    </div>
+
+    <div class="la-footer-core">
+      <div class="la-footer-wrap">
+        <div class="la-footer-grid">
+          <div class="la-footer-brand-col">
+            <div class="la-footer-brand">Lift<span>Audit</span></div>
+            <p class="la-footer-desc">Автоматический аудит лифтовой документации для управляющих компаний. Защита от
+              штрафов и приостановки деятельности.</p>
+          </div>
+          <div>
+            <p class="la-footer-title">Навигация</p>
+            <ul class="la-footer-list">
+              <li><a href="#features" class="la-footer-link">Возможности</a></li>
+              <li><a href="#how-it-works" class="la-footer-link">Как это работает</a></li>
+              <li><a href="#criteria" class="la-footer-link">Критерии</a></li>
+              <li><a href="#pricing" class="la-footer-link">Тарифы</a></li>
+            </ul>
+          </div>
+          <div>
+            <p class="la-footer-title">Платформа</p>
+            <ul class="la-footer-list">
+              <li><span class="la-footer-text">Личный кабинет</span></li>
+              <li><span class="la-footer-text">OCR-сканирование</span></li>
+              <li><span class="la-footer-text">PDF-отчеты</span></li>
+              <li><span class="la-footer-text">Уведомления</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="la-footer-title">Контакты</p>
+            <ul class="la-footer-list">
+              <li><a href="mailto:info@liftaudit.ru" class="la-footer-link">info@liftaudit.ru</a></li>
+              <li><a href="tel:+78000000000" class="la-footer-link">+7 (800) 000-00-00</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="la-footer-bottom">
+          <p class="la-footer-copy">&copy; 2025 LiftAudit. Все права защищены.</p>
+          <p class="la-footer-copy">Сделано для безопасности лифтового хозяйства России</p>
+          <div class="la-status"><span class="la-status-dot"></span>Все системы работают</div>
+        </div>
+      </div>
+    </div>
+
+    <span class="la-footer-divider"></span>
+  </section>
+
+  <script>
+    // ===== GSAP =====
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Reveal with stagger
+    document.querySelectorAll('.section-glow, section').forEach(section => {
+      const reveals = section.querySelectorAll('.reveal');
+      if (reveals.length === 0) return;
+      gsap.fromTo(reveals,
+        { opacity: 0, y: 40 },
+        {
+          opacity: 1, y: 0,
+          duration: 0.9,
+          stagger: 0.08,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: section, start: 'top 80%', once: true }
+        }
+      );
+    });
+
+    // Standalone reveals (metrics, hero)
+    document.querySelectorAll('.reveal').forEach(el => {
+      if (el.closest('.section-glow')) return;
+      gsap.fromTo(el,
+        { opacity: 0, y: 40 },
+        {
+          opacity: 1, y: 0, duration: 0.9, ease: 'power3.out',
+          scrollTrigger: { trigger: el, start: 'top 85%', once: true }
+        }
+      );
+    });
+
+    // ===== GET STARTED REVEAL =====
+    (function () {
+      const section = document.getElementById('contact');
+      const glow = document.getElementById('la-glow-bg');
+      const lineGroup = document.getElementById('la-line-group');
+      const ctaShell = document.getElementById('la-cta-shell');
+      if (!section || !glow || !lineGroup || !ctaShell) return;
+
+      gsap.set(glow, { opacity: 0 });
+      gsap.set(lineGroup, { opacity: 0, scaleY: 0, transformOrigin: 'top center' });
+      gsap.set(ctaShell, { opacity: 0.3, boxShadow: '0px 0px 25.8px 0px rgba(255, 255, 255, 0.0)' });
+
+      const tl = gsap.timeline({
+        scrollTrigger: { trigger: section, start: 'top 78%', once: true }
+      });
+
+      tl.to(glow, { opacity: 0.8, duration: 0.8, ease: 'power2.out' }, 0)
+        .to(ctaShell, {
+          opacity: 1,
+          boxShadow: '0px 0px 28px 0px rgba(255, 255, 255, 0.55)',
+          duration: 0.9,
+          ease: 'power2.out'
+        }, 0.05)
+        .to(lineGroup, { opacity: 1, scaleY: 1, duration: 1.15, ease: 'power3.out' }, 0.2);
+    })();
+
+    // ===== HERO TEXT GLITCH =====
+    const heroText = 'Автоматический аудит лифтовой документации';
+    (function () {
+      'use strict';
+
+      function randFloat(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      class TextGlitch {
+        constructor(o) {
+          this.canvas = o.canvas;
+          this.ctx = o.canvas.getContext('2d');
+          this.w = o.width;
+          this.h = o.height;
+          this.fs = o.fs;
+          this.lh = o.lh;
+          this.fontStr = o.fontStr;
+          this.color = o.color;
+          this.ls = o.ls;
+          this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+          this.bs = 10;
+          this.relaxation = 0.85;
+          this.radius = 0.25;
+          this.dispScale = 100;
+          this.velDamp = 0.85;
+          this.glitchMinX = -80;
+          this.glitchMaxX = 80;
+          this.glitchDuration = 0.25;
+          this.glitchEase = 'power2.out';
+          this.mouse = { x: .5, y: .5, vX: 0, vY: 0, px: .5, py: .5 };
+          this._busy = false;
+          this._rafId = null;
+          this._init();
+        }
+
+        _init() {
+          const { w, h, dpr } = this;
+          // Add descender padding so Cyrillic tails (У, р, д) don't clip
+          const descPad = Math.ceil(this.fs * 0.4);
+          this.hPadded = h + descPad;
+          this.canvas.width = w * dpr;
+          this.canvas.height = this.hPadded * dpr;
+          this.canvas.style.height = this.hPadded + 'px';
+          this.ctx.scale(dpr, dpr);
+          // offscreen text canvas (taller to fit descenders)
+          const tc = this.tc = document.createElement('canvas');
+          tc.width = w * dpr; tc.height = this.hPadded * dpr;
+          const tctx = this.tctx = tc.getContext('2d');
+          tctx.scale(dpr, dpr);
+          // displacement grid (x, y, unused, unused per cell)
+          this.gx = Math.ceil(w / this.bs);
+          this.gy = Math.ceil(this.hPadded / this.bs);
+          const n = this.gx * this.gy * 4;
+          this.gd = new Float32Array(n);
+          this.gs = new Float32Array(n);
+          this._renderText();
+          this._bindEvents();
+          this._loop();
+        }
+
+        _renderText() {
+          const { tctx: ctx, w, lh, fs, fontStr, color, ls, hPadded } = this;
+          ctx.clearRect(0, 0, w, hPadded);
+          ctx.font = fontStr;
+          ctx.textBaseline = 'top';
+          if ('letterSpacing' in ctx && ls !== 'normal') ctx.letterSpacing = ls;
+          const lines = this._wrap(ctx, heroText, w);
+          const topOff = (lh - fs) * 0.5;
+          const descPad = fs * 0.35;
+          lines.forEach((line, i) => {
+            const lineY = topOff + i * lh;
+            const grad = ctx.createLinearGradient(0, lineY, 0, lineY + lh + descPad);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.25, '#dce3ec');
+            grad.addColorStop(0.55, '#b0bac8');
+            grad.addColorStop(0.82, '#8d99aa');
+            grad.addColorStop(1, '#7a8696');
+            ctx.fillStyle = grad;
+            ctx.fillText(line, 0, lineY);
+          });
+        }
+
+        _wrap(ctx, text, maxW) {
+          const words = text.split(' ');
+          const lines = [];
+          let cur = '';
+          for (const word of words) {
+            const test = cur ? cur + ' ' + word : word;
+            if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = word; }
+            else cur = test;
+          }
+          if (cur) lines.push(cur);
+          return lines;
+        }
+
+        _updateGrid() {
+          const d = this.gd, rel = this.relaxation;
+          for (let i = 0; i < d.length; i += 4) { d[i] *= rel; d[i + 1] *= rel; }
+          const mx = this.gx * this.mouse.x, my = this.gy * this.mouse.y;
+          const r = this.gx * this.radius, r2 = r * r;
+          for (let y = 0; y < this.gy; y++) {
+            for (let x = 0; x < this.gx; x++) {
+              const dx = mx - x, dy = my - y, d2 = dx * dx + dy * dy;
+              if (d2 < r2) {
+                const idx = 4 * (x + y * this.gx);
+                const fac = Math.pow(1 - d2 / r2, 3);
+                const s = this.dispScale;
+                d[idx] += s * this.mouse.vX * fac;
+              }
+            }
+          }
+          this.mouse.vX *= this.velDamp;
+          this.mouse.vY *= this.velDamp;
+        }
+
+        _draw() {
+          const { ctx, tc, gd, gx, gy, bs, dpr, w, hPadded } = this;
+          ctx.clearRect(0, 0, w, hPadded);
+          for (let y = 0; y < gy; y++) {
+            for (let x = 0; x < gx; x++) {
+              const idx = 4 * (x + y * gx);
+              const ddx = gd[idx], ddy = gd[idx + 1];
+              const sx = x * bs, sy = y * bs;
+              const ex = Math.max(0, Math.min(sx + ddx, w - bs));
+              const ey = Math.max(0, Math.min(sy + ddy, hPadded - bs));
+              ctx.drawImage(tc, sx * dpr, sy * dpr, bs * dpr, bs * dpr, ex, ey, bs, bs);
+            }
+          }
+        }
+
+        _loop() {
+          this._updateGrid();
+          this._draw();
+          this._rafId = requestAnimationFrame(() => this._loop());
+        }
+
+        playGlitch() {
+          if (this._busy) return;
+          this._busy = true;
+          const d = this.gd;
+          const gs = this.gs = new Float32Array(d.length);
+          for (let i = 0; i < d.length; i += 4) {
+            gs[i] = randFloat(this.glitchMinX, this.glitchMaxX);
+            gs[i + 1] = 0;
+            d[i] = gs[i];
+            d[i + 1] = gs[i + 1];
+          }
+          const anim = { t: 0 };
+          gsap.to(anim, {
+            t: 1, duration: this.glitchDuration, ease: this.glitchEase,
+            onUpdate: () => { const inv = 1 - anim.t; for (let i = 0; i < d.length; i += 4) { d[i] = gs[i] * inv; d[i + 1] = gs[i + 1] * inv; } },
+            onComplete: () => { this._busy = false; }
+          });
+        }
+
+        _bindEvents() {
+          const c = this.canvas;
+          this._onMouseMove = e => {
+            const r = c.getBoundingClientRect();
+            const x = (e.clientX - r.left) / r.width;
+            const y = (e.clientY - r.top) / r.height;
+            this.mouse.vX = x - this.mouse.px;
+            this.mouse.vY = y - this.mouse.py;
+            this.mouse.px = x; this.mouse.py = y;
+            this.mouse.x = x; this.mouse.y = y;
+          };
+          this._onMouseLeave = () => { this.mouse.vX = 0; this.mouse.vY = 0; };
+          this._onClick = () => this.playGlitch();
+          c.addEventListener('mousemove', this._onMouseMove);
+          c.addEventListener('mouseleave', this._onMouseLeave);
+          c.addEventListener('click', this._onClick);
+        }
+
+        destroy() {
+          if (this._rafId) {
+            cancelAnimationFrame(this._rafId);
+            this._rafId = null;
+          }
+          if (this._onMouseMove) this.canvas.removeEventListener('mousemove', this._onMouseMove);
+          if (this._onMouseLeave) this.canvas.removeEventListener('mouseleave', this._onMouseLeave);
+          if (this._onClick) this.canvas.removeEventListener('click', this._onClick);
+        }
+      }
+
+      let heroGlitchInstance = null;
+      let resizeTimer = null;
+
+      function initHeroGlitch() {
+        const wrap = document.getElementById('hero-animated-text');
+        const mainText = document.getElementById('hero-main-text');
+        const shadowText = document.getElementById('hero-shadow-text');
+        if (!wrap || !mainText || !shadowText) return;
+
+        mainText.textContent = heroText;
+        shadowText.textContent = heroText;
+
+        if (heroGlitchInstance) {
+          heroGlitchInstance.destroy();
+          heroGlitchInstance = null;
+        }
+        const existing = wrap.querySelector('canvas.hero-glitch-canvas');
+        if (existing) existing.remove();
+
+        const rect = wrap.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        if (w <= 0 || h <= 0) return;
+
+        const cs = getComputedStyle(mainText);
+        const fs = parseFloat(cs.fontSize);
+        const lh = parseFloat(cs.lineHeight) || fs * 1.05;
+        const fontStr = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+        const color = cs.color;
+        const ls = cs.letterSpacing;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'hero-glitch-canvas';
+        canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:auto;z-index:2;cursor:default;';
+        wrap.appendChild(canvas);
+        heroGlitchInstance = new TextGlitch({ canvas, width: w, height: h, fs, lh, fontStr, color, ls });
+      }
+
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => initHeroGlitch(), 160);
+      });
+
+      const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      fontsReady.then(() => requestAnimationFrame(() => initHeroGlitch()));
+    })();
+
+    // ===== HERO PARTICLES =====
+    const particlesContainer = document.getElementById('hero-particles');
+    function createParticle() {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 3 + 1;
+      const x = Math.random() * window.innerWidth;
+      const y = Math.random() * window.innerHeight * 0.6 + window.innerHeight * 0.2;
+      const dur = Math.random() * 4 + 4;
+      const colors = ['rgba(48,122,232,0.4)', 'rgba(139,92,246,0.3)', 'rgba(99,102,241,0.3)', 'rgba(96,165,250,0.3)'];
+      p.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px;background:${colors[Math.floor(Math.random() * colors.length)]};animation:particle-float ${dur}s ease-out forwards`;
+      particlesContainer.appendChild(p);
+      setTimeout(() => p.remove(), dur * 1000);
+    }
+    setInterval(createParticle, 300);
+
+    // ===== NAV SCROLL =====
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      navbar.classList.toggle('nav-scrolled', window.scrollY > 50);
+    });
+
+    // ===== NAV DROPDOWNS =====
+    (function () {
+      const wraps = document.querySelectorAll('.nav-dd-wrap');
+      const timers = new WeakMap();
+
+      function openWrap(wrap) {
+        clearTimeout(timers.get(wrap));
+        wraps.forEach(w => { if (w !== wrap) closeWrap(w, true); });
+        const panel = wrap.querySelector('.nav-dd-panel');
+        const btn = wrap.querySelector('.nav-dd-trigger');
+        wrap.classList.add('is-open');
+        panel.classList.add('is-open');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+      }
+
+      function closeWrap(wrap, immediate) {
+        const doClose = () => {
+          const panel = wrap.querySelector('.nav-dd-panel');
+          const btn = wrap.querySelector('.nav-dd-trigger');
+          wrap.classList.remove('is-open');
+          panel.classList.remove('is-open');
+          if (btn) btn.setAttribute('aria-expanded', 'false');
+        };
+        if (immediate) { clearTimeout(timers.get(wrap)); doClose(); }
+        else { timers.set(wrap, setTimeout(doClose, 150)); }
+      }
+
+      wraps.forEach(wrap => {
+        const panel = wrap.querySelector('.nav-dd-panel');
+        wrap.addEventListener('mouseenter', () => openWrap(wrap));
+        wrap.addEventListener('mouseleave', () => closeWrap(wrap));
+        panel.addEventListener('mouseenter', () => clearTimeout(timers.get(wrap)));
+        panel.addEventListener('mouseleave', () => closeWrap(wrap));
+      });
+
+      document.addEventListener('click', e => {
+        if (!e.target.closest('.nav-dd-wrap')) wraps.forEach(w => closeWrap(w, true));
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') wraps.forEach(w => closeWrap(w, true));
+      });
+    })();
+
+    // ===== MOBILE MENU =====
+    const mm = document.getElementById('mobile-menu');
+    document.getElementById('mobile-toggle').addEventListener('click', () => mm.classList.add('open'));
+    document.getElementById('mobile-close').addEventListener('click', () => mm.classList.remove('open'));
+    document.querySelectorAll('.mobile-link').forEach(l => l.addEventListener('click', () => mm.classList.remove('open')));
+
+    // ===== COUNTERS =====
+    function animateCounter(el, target, duration, suffix = '') {
+      const start = performance.now();
+      function update(now) {
+        const p = Math.min((now - start) / duration, 1);
+        const e = 1 - Math.pow(1 - p, 4);
+        el.textContent = Math.round(target * e) + suffix;
+        if (p < 1) requestAnimationFrame(update);
+      }
+      requestAnimationFrame(update);
+    }
+
+    document.querySelectorAll('[data-counter]').forEach(el => {
+      ScrollTrigger.create({
+        trigger: el, start: 'top 85%', once: true,
+        onEnter: () => animateCounter(el, +el.dataset.counter, 1200)
+      });
+    });
+
+    document.querySelectorAll('[data-counter-main]').forEach(el => {
+      ScrollTrigger.create({
+        trigger: el, start: 'top 85%', once: true,
+        onEnter: () => animateCounter(el, +el.dataset.counterMain, 1800)
+      });
+    });
+
+    document.querySelectorAll('.dashboard-counter').forEach(el => {
+      ScrollTrigger.create({
+        trigger: el, start: 'top 90%', once: true,
+        onEnter: () => animateCounter(el, +el.dataset.target, 1200)
+      });
+    });
+
+    // ===== PROGRESS BARS =====
+    document.querySelectorAll('.dashboard-progress').forEach(el => {
+      el.style.width = '0%';
+      ScrollTrigger.create({
+        trigger: el, start: 'top 90%', once: true,
+        onEnter: () => gsap.to(el, { width: el.dataset.width + '%', duration: 1.4, ease: 'power3.out' })
+      });
+    });
+
+    // ===== CRITERIA =====
+    function toggleCriteria(el) {
+      const was = el.classList.contains('active');
+      document.querySelectorAll('.criteria-item').forEach(i => i.classList.remove('active'));
+      if (!was) el.classList.add('active');
+    }
+
+    // ===== SMOOTH SCROLL =====
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        const t = document.querySelector(this.getAttribute('href'));
+        if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.pageYOffset - 80, behavior: 'smooth' });
+      });
+    });
+
+    // ===== BUTTON RIPPLE =====
+    document.querySelectorAll('.btn-ripple').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        const circle = document.createElement('span');
+        circle.className = 'ripple-circle';
+        const r = Math.max(this.offsetWidth, this.offsetHeight);
+        circle.style.width = circle.style.height = r + 'px';
+        circle.style.left = e.clientX - this.getBoundingClientRect().left - r / 2 + 'px';
+        circle.style.top = e.clientY - this.getBoundingClientRect().top - r / 2 + 'px';
+        this.appendChild(circle);
+        setTimeout(() => circle.remove(), 600);
+      });
+    });
+
+    // ===== 3D SPHERE =====
+    (function () {
+      const canvas = document.getElementById('sphere-canvas');
+      const sphereWrap = canvas ? canvas.closest('.sphere-wrap') : null;
+      if (!canvas || !sphereWrap || typeof THREE === 'undefined') return;
+      const SPHERE_ENHANCED = true; // fast rollback: set false to restore previous sphere visuals/behavior
+      document.documentElement.classList.toggle('sphere-enhanced', SPHERE_ENHANCED);
+
+      const SETTINGS = {
+        particleCount: 2200,
+        sphereRadius: 3,
+        particleRadius: 0.125,
+        highlightChance: 0.075,
+        dangerHighlightChance: 0.35,
+        rotation: { static: 0.000162, hover: 0.0001 },
+        drag: { sensitivity: 0.0025, damping: 0.9, maxTilt: Math.PI * 0.45 },
+        color: 0x5a8cff,
+        dangerColor: 0xff5252,
+        far: new THREE.Vector3(1e6, 1e6, 1e6),
+      };
+
+      const PARTICLE_VERTEX_SHADER = `attribute vec3 a_instancePos;
+attribute float a_highlight;
+attribute float a_danger;
+
+uniform float u_time;
+uniform float u_highlight_scale;
+uniform float u_noise_scale;
+uniform float u_noise_speed;
+uniform vec3 u_hover_position;
+
+varying vec2 v_uv;
+varying float v_highlight;
+varying float v_danger;
+varying float v_noise;
+varying float v_scale;
+
+vec3 mod289(vec3 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+vec4 mod289(vec4 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+vec4 permute(vec4 x) {
+  return mod289(((x * 34.0) + 1.0) * x);
+}
+vec4 taylorInvSqrt(vec4 r) {
+  return 1.79284291400159 - 0.85373472095314 * r;
+}
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i);
+  vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+  vec3 g0 = vec3(a0.xy, h.x);
+  vec3 g1 = vec3(a0.zw, h.y);
+  vec3 g2 = vec3(a1.xy, h.z);
+  vec3 g3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(g0, g0), dot(g1, g1), dot(g2, g2), dot(g3, g3)));
+  g0 *= norm.x;
+  g1 *= norm.y;
+  g2 *= norm.z;
+  g3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m * m, vec4(dot(g0, x0), dot(g1, x1), dot(g2, x2), dot(g3, x3)));
+}
+
+void main() {
+  v_uv = uv;
+  v_highlight = a_highlight;
+  v_danger = a_danger;
+  vec3 p = a_instancePos * u_noise_scale + u_time * u_noise_speed;
+  float n = snoise(p) * 0.5 + 0.5;
+  v_noise = smoothstep(0.35, 1.0, n);
+  float dist = distance(a_instancePos, u_hover_position);
+  v_scale = 1.0 + (u_highlight_scale * v_noise * a_highlight);
+  float hover = mix(0.0, 0.25, clamp(1.0 - dist, 0.0, 1.0));
+  float noise = mix(-0.1, 0.25, v_noise);
+  vec3 transformed = position;
+  transformed.xy *= (v_scale + (hover + noise));
+  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
+}`;
+
+      const PARTICLE_FRAGMENT_SHADER = `varying float v_highlight;
+varying float v_danger;
+varying vec2 v_uv;
+varying float v_noise;
+varying float v_scale;
+
+uniform vec3 u_color;
+uniform vec3 u_danger_color;
+uniform float u_radius;
+uniform float u_thickness;
+uniform float u_highlight_intensity;
+
+#ifndef CIRCLESDF_FNC
+#define CIRCLESDF_FNC(POS_UV) length(POS_UV)
+#endif
+#ifndef FNC_CIRCLESDF
+#define FNC_CIRCLESDF
+float circleSDF(in vec2 v) {
+#ifdef CENTER_2D
+  v -= CENTER_2D;
+#else
+  v -= 0.5;
+#endif
+  return CIRCLESDF_FNC(v) * 2.0;
+}
+#endif
+
+#ifndef FNC_AASTEP
+#define FNC_AASTEP
+#if defined(GL_OES_standard_derivatives)
+#extension GL_OES_standard_derivatives : enable
+#endif
+float aastep(float threshold, float value) {
+#if !defined(GL_ES) || __VERSION__ >= 300 || defined(GL_OES_standard_derivatives)
+  float afwidth = 0.7 * length(vec2(dFdx(value), dFdy(value)));
+  return smoothstep(threshold - afwidth, threshold + afwidth, value);
+#else
+  return step(threshold, value);
+#endif
+}
+#endif
+
+float stroke(float x, float size, float w) {
+  float d = aastep(size, x + w * 0.5) - aastep(size, x - w * 0.5);
+  return clamp(d, 0.0, 1.0);
+}
+float fill(float x, float size) {
+  return 1.0 - aastep(size, x);
+}
+
+void main() {
+  float danger_factor = v_highlight * v_danger;
+  vec3 effective_color = mix(u_color.rgb, u_danger_color.rgb, danger_factor);
+  float circle = circleSDF(v_uv);
+  float outline = stroke(circle, u_radius, u_thickness);
+  vec4 outline_color = vec4(effective_color, outline);
+  vec3 glow_target = mix(vec3(0.67, 0.86, 1.0), vec3(1.0, 0.72, 0.72), danger_factor);
+  vec3 glow_color = mix(effective_color, glow_target, 0.16);
+  vec4 background = vec4(glow_color, ((1.0 - circle) * v_noise) * u_highlight_intensity);
+  float solid = fill(circle, (u_radius) * (1.0 / v_scale));
+  vec4 solid_color = background + vec4(effective_color, solid);
+  vec3 color = mix(outline_color.rgb, solid_color.rgb, v_highlight);
+  float alpha = mix(outline_color.a, solid_color.a, v_highlight);
+  gl_FragColor = vec4(color, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
+      class SphereParticleMaterial extends THREE.ShaderMaterial {
+        constructor(color) {
+          super({
+            vertexShader: PARTICLE_VERTEX_SHADER,
+            fragmentShader: PARTICLE_FRAGMENT_SHADER,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false,
+            uniforms: {
+              u_color: { value: new THREE.Color(color) },
+              u_danger_color: { value: new THREE.Color(SETTINGS.dangerColor) },
+              u_radius: { value: 0.8 },
+              u_thickness: { value: 0.1 },
+              u_time: { value: 0 },
+              u_hover_position: { value: SETTINGS.far.clone() },
+              u_highlight_intensity: { value: SPHERE_ENHANCED ? 0.7 : 0.58 },
+              u_highlight_scale: { value: 4 },
+              u_noise_scale: { value: 0.5 },
+              u_noise_speed: { value: 0.2 },
+            },
+          });
+        }
+      }
+
+      class MeridianSphere extends THREE.Group {
+        constructor() {
+          super();
+          this.setupSphere();
+          this.setupParticles();
+        }
+
+        setupSphere() {
+          const geometry = new THREE.SphereGeometry(SETTINGS.sphereRadius, 64, 32);
+          const material = new THREE.MeshBasicMaterial({
+            opacity: 0,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+          });
+          this.sphere = new THREE.Mesh(geometry, material);
+          this.add(this.sphere);
+        }
+
+        setupParticles() {
+          const geometry = new THREE.PlaneGeometry(SETTINGS.particleRadius, SETTINGS.particleRadius);
+          const material = new SphereParticleMaterial(SETTINGS.color);
+          this.instancedParticles = new THREE.InstancedMesh(geometry, material, SETTINGS.particleCount);
+
+          const positions = new Float32Array(SETTINGS.particleCount * 3);
+          const highlights = new Float32Array(SETTINGS.particleCount);
+          const dangers = new Float32Array(SETTINGS.particleCount);
+          const tmpMatrix = new THREE.Matrix4();
+          const up = new THREE.Vector3(0, 0, 1);
+          const scale = new THREE.Vector3(1, 1, 1);
+          const quat = new THREE.Quaternion();
+
+          for (let i = 0; i < SETTINGS.particleCount; i++) {
+            const dir = this.getFibonacciDirection(i, SETTINGS.particleCount);
+            const point = dir.clone().multiplyScalar(SETTINGS.sphereRadius);
+            positions[i * 3] = point.x;
+            positions[i * 3 + 1] = point.y;
+            positions[i * 3 + 2] = point.z;
+            const hl = Math.random() < SETTINGS.highlightChance ? 1 : 0;
+            highlights[i] = hl;
+            dangers[i] = hl && Math.random() < SETTINGS.dangerHighlightChance ? 1 : 0;
+
+            quat.setFromUnitVectors(up, dir);
+            tmpMatrix.compose(point, quat, scale);
+            this.instancedParticles.setMatrixAt(i, tmpMatrix);
+          }
+
+          geometry.setAttribute('a_instancePos', new THREE.InstancedBufferAttribute(positions, 3));
+          geometry.setAttribute('a_highlight', new THREE.InstancedBufferAttribute(highlights, 1));
+          geometry.setAttribute('a_danger', new THREE.InstancedBufferAttribute(dangers, 1));
+          this.instancedParticles.instanceMatrix.needsUpdate = true;
+          this.add(this.instancedParticles);
+        }
+
+        getFibonacciDirection(index, count) {
+          const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+          const y = 1 - ((index + 0.5) * 2) / count;
+          const radius = Math.sqrt(Math.max(0, 1 - y * y));
+          const theta = goldenAngle * index;
+          return new THREE.Vector3(Math.cos(theta) * radius, y, Math.sin(theta) * radius).normalize();
+        }
+
+        update(elapsedTime, deltaTime, controls) {
+          const dt = typeof deltaTime === 'number' && deltaTime > 0 ? deltaTime : (1000 / 60);
+          this.instancedParticles.material.uniforms.u_time.value = elapsedTime;
+          if (!controls.dragging) {
+            this.rotation.y += controls.angularVelocity.x;
+            this.rotation.x += controls.angularVelocity.y;
+            controls.angularVelocity.x *= SETTINGS.drag.damping;
+            controls.angularVelocity.y *= SETTINGS.drag.damping;
+            if (controls.autoRotate) this.rotation.y += controls.autoRotateSpeed * dt;
+          }
+          this.rotation.x = Math.max(-SETTINGS.drag.maxTilt, Math.min(SETTINGS.drag.maxTilt, this.rotation.x));
+        }
+      }
+
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 200);
+      camera.position.set(0, 0, 6);
+      const raycaster = new THREE.Raycaster();
+
+      const globe = new MeridianSphere();
+      scene.add(globe);
+
+      const state = {
+        pointerInside: false,
+        pointerNDC: new THREE.Vector2(-10, -10),
+        width: 1,
+        height: 1,
+      };
+
+      const controls = {
+        dragging: false,
+        activePointerId: null,
+        lastPointer: { x: 0, y: 0 },
+        angularVelocity: { x: 0, y: 0 },
+        autoRotate: true,
+        autoRotateSpeed: SETTINGS.rotation.static,
+      };
+
+      const promptEl = document.getElementById('sphere-prompt');
+      const promptHeaderEl = promptEl ? promptEl.querySelector('.sphere-prompt-header') : null;
+      const promptPlatformEl = document.getElementById('sphere-prompt-platform');
+      const promptTextEl = document.getElementById('sphere-prompt-text');
+      const visibilityValueEl = document.getElementById('sphere-visibility-value');
+      const visibilityDeltaEl = document.getElementById('sphere-visibility-delta');
+      const sentimentValueEl = document.getElementById('sphere-sentiment-value');
+      const sentimentDeltaEl = document.getElementById('sphere-sentiment-delta');
+      const positionValueEl = document.getElementById('sphere-position-value');
+      const positionDeltaEl = document.getElementById('sphere-position-delta');
+      const mentionedWrapEl = document.getElementById('sphere-prompt-mentioned');
+      const ICON_OK = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#22c55e"/><path d="M9 16.5l5 5 9-9.5" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+      const ICON_WARN = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><polygon points="16,3 30,28 2,28" fill="#ef4444"/><rect x="14.5" y="11" width="3" height="9" rx="1" fill="white"/><circle cx="16" cy="24" r="1.8" fill="white"/></svg>');
+      const PROMPT_DATA = [
+        // --- Нарушения ---
+        {
+          platform: ICON_WARN,
+          query: 'ООО «КоммунРесурс» · Самара',
+          isNegative: true,
+          visibility: { value: '1', delta: '' },
+          sentiment: { value: '61%', delta: '-11%' },
+          position: { value: '20 000₽', delta: '' },
+          logos: [],
+          status: 'Дело возбуждено',
+        },
+        {
+          platform: ICON_WARN,
+          query: 'Александровская б-ца · СПб',
+          isNegative: true,
+          visibility: { value: '19', delta: '' },
+          sentiment: { value: '45%', delta: '-22%' },
+          position: { value: '—', delta: '' },
+          logos: [],
+          status: 'Иск в суд',
+        },
+        {
+          platform: ICON_WARN,
+          query: 'ООО УК «Атом» · Ижевск',
+          isNegative: true,
+          visibility: { value: '2', delta: '' },
+          sentiment: { value: '28%', delta: '-18%' },
+          position: { value: '125 000₽', delta: '' },
+          logos: [],
+          status: 'Штраф оплачен',
+        },
+        {
+          platform: ICON_WARN,
+          query: 'УК «ЖилСтандарт» · Новосибирск',
+          isNegative: true,
+          visibility: { value: '3', delta: '' },
+          sentiment: { value: '52%', delta: '-8%' },
+          position: { value: '50 000₽', delta: '' },
+          logos: [],
+          status: 'Предписание',
+        },
+        {
+          platform: ICON_WARN,
+          query: 'МУП «ЖКУ» · Екатеринбург',
+          isNegative: true,
+          visibility: { value: '1', delta: '' },
+          sentiment: { value: '38%', delta: '-14%' },
+          position: { value: '80 000₽', delta: '' },
+          logos: [],
+          status: 'Устранено',
+        },
+        // --- Без нарушений ---
+        {
+          platform: ICON_OK,
+          query: 'УК «Комфорт Плюс» · Москва',
+          isNegative: false,
+          visibility: { value: '0', delta: '' },
+          sentiment: { value: '98%', delta: '+3%' },
+          position: { value: 'нет', delta: '' },
+          logos: [],
+          status: 'Норма',
+        },
+        {
+          platform: ICON_OK,
+          query: 'АО «ЖилСервис» · Краснодар',
+          isNegative: false,
+          visibility: { value: '0', delta: '' },
+          sentiment: { value: '100%', delta: '+5%' },
+          position: { value: 'нет', delta: '' },
+          logos: [],
+          status: 'Соотв. ТР ТС 011',
+        },
+        {
+          platform: ICON_OK,
+          query: 'ООО «УправДом» · Казань',
+          isNegative: false,
+          visibility: { value: '0', delta: '' },
+          sentiment: { value: '95%', delta: '+2%' },
+          position: { value: 'нет', delta: '' },
+          logos: [],
+          status: 'Топ УК 2025',
+        },
+        {
+          platform: ICON_OK,
+          query: 'ООО «СпецЖилФонд» · Н. Новгород',
+          isNegative: false,
+          visibility: { value: '0', delta: '' },
+          sentiment: { value: '97%', delta: '+4%' },
+          position: { value: 'нет', delta: '' },
+          logos: [],
+          status: 'Аудит пройден',
+        },
+        {
+          platform: ICON_OK,
+          query: 'ТСЖ «Весенний» · Уфа',
+          isNegative: false,
+          visibility: { value: '0', delta: '' },
+          sentiment: { value: '92%', delta: '+7%' },
+          position: { value: 'нет', delta: '' },
+          logos: [],
+          status: 'Лифты обновлены',
+        },
+      ];
+      const NEGATIVE_DATA = PROMPT_DATA.filter(d => d.isNegative);
+      const POSITIVE_DATA = PROMPT_DATA.filter(d => !d.isNegative);
+      const hasGsap = typeof gsap !== 'undefined';
+      const PROMPT_AUTOPLAY_DELAY = 4000;
+      const PROMPT_AUTOPLAY_RESTART_DELAY = 900;
+      const promptState = {
+        visible: false,
+        mode: 'manual',
+        order: [],
+        cursor: 0,
+        negOrder: [],
+        negCursor: 0,
+        posOrder: [],
+        posCursor: 0,
+        typeTimer: 0,
+        typeToken: 0,
+        autoplayTimer: 0,
+        pulseTimer: 0,
+      };
+
+      function tweenAutoRotateSpeed(target) {
+        if (hasGsap) {
+          gsap.to(controls, {
+            autoRotateSpeed: target,
+            overwrite: true,
+          });
+          return;
+        }
+        controls.autoRotateSpeed = target;
+      }
+
+      function syncAutoRotateSpeed() {
+        if (promptState.visible) {
+          tweenAutoRotateSpeed(0);
+          return;
+        }
+        tweenAutoRotateSpeed(state.pointerInside ? SETTINGS.rotation.hover : SETTINGS.rotation.static);
+      }
+
+      function stopPromptAutoplay() {
+        if (!SPHERE_ENHANCED) return;
+        if (promptState.autoplayTimer) {
+          window.clearTimeout(promptState.autoplayTimer);
+          promptState.autoplayTimer = 0;
+        }
+        promptState.mode = 'manual';
+      }
+
+      function triggerPromptHeaderPulse() {
+        if (!SPHERE_ENHANCED || !promptHeaderEl) return;
+        promptHeaderEl.classList.remove('pulse');
+        void promptHeaderEl.offsetWidth;
+        promptHeaderEl.classList.add('pulse');
+        if (promptState.pulseTimer) window.clearTimeout(promptState.pulseTimer);
+        promptState.pulseTimer = window.setTimeout(() => {
+          promptHeaderEl.classList.remove('pulse');
+          promptState.pulseTimer = 0;
+        }, 1120);
+      }
+
+      function shuffledIndices(total) {
+        const list = Array.from({ length: total }, (_, i) => i);
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = list[i];
+          list[i] = list[j];
+          list[j] = tmp;
+        }
+        return list;
+      }
+
+      function nextFromPool(pool, orderKey, cursorKey) {
+        if (!pool.length) return null;
+        if (promptState[orderKey].length === 0 || promptState[cursorKey] >= promptState[orderKey].length) {
+          promptState[orderKey] = shuffledIndices(pool.length);
+          promptState[cursorKey] = 0;
+        }
+        const item = pool[promptState[orderKey][promptState[cursorKey]]];
+        promptState[cursorKey] += 1;
+        return item;
+      }
+
+      function nextPromptItem(isDanger) {
+        if (isDanger === true) return nextFromPool(NEGATIVE_DATA, 'negOrder', 'negCursor');
+        if (isDanger === false) return nextFromPool(POSITIVE_DATA, 'posOrder', 'posCursor');
+        // autoplay — из полного пула
+        if (!PROMPT_DATA.length) return null;
+        if (promptState.order.length === 0 || promptState.cursor >= promptState.order.length) {
+          promptState.order = shuffledIndices(PROMPT_DATA.length);
+          promptState.cursor = 0;
+        }
+        const item = PROMPT_DATA[promptState.order[promptState.cursor]];
+        promptState.cursor += 1;
+        return item;
+      }
+
+      function stopPromptTyping() {
+        if (promptState.typeTimer) {
+          window.clearTimeout(promptState.typeTimer);
+          promptState.typeTimer = 0;
+        }
+        promptState.typeToken += 1;
+      }
+
+      function typePromptText(text) {
+        if (!promptTextEl) return;
+        stopPromptTyping();
+        const value = String(text || '');
+        if (!value.length) {
+          promptTextEl.textContent = '';
+          return;
+        }
+        const chars = Array.from(value);
+        const step = Math.max(14, Math.floor(920 / chars.length));
+        const token = promptState.typeToken;
+        let index = 0;
+        const tick = () => {
+          if (token !== promptState.typeToken) return;
+          index += 1;
+          if (index >= chars.length) {
+            promptTextEl.textContent = value;
+            promptState.typeTimer = 0;
+            return;
+          }
+          promptTextEl.textContent = chars.slice(0, index).join('') + '|';
+          promptState.typeTimer = window.setTimeout(tick, step);
+        };
+        promptTextEl.textContent = '|';
+        promptState.typeTimer = window.setTimeout(tick, step);
+      }
+
+      function applyDeltaClass(el, delta) {
+        if (!el) return;
+        el.classList.remove('neg', 'neutral');
+        const clean = String(delta || '').trim();
+        if (clean.startsWith('-')) {
+          el.classList.add('neg');
+          return;
+        }
+        if (clean === '0' || clean === '0%') {
+          el.classList.add('neutral');
+        }
+      }
+
+      function renderPrompt(item) {
+        if (!item || !promptEl) return;
+        promptEl.classList.toggle('negative', Boolean(item.isNegative));
+        if (promptPlatformEl) promptPlatformEl.src = item.platform;
+        if (promptTextEl) typePromptText(item.query);
+        if (visibilityValueEl) visibilityValueEl.textContent = item.visibility.value;
+        if (visibilityDeltaEl) {
+          visibilityDeltaEl.textContent = item.visibility.delta;
+          applyDeltaClass(visibilityDeltaEl, item.visibility.delta);
+        }
+        if (sentimentValueEl) sentimentValueEl.textContent = item.sentiment.value;
+        if (sentimentDeltaEl) {
+          sentimentDeltaEl.textContent = item.sentiment.delta;
+          applyDeltaClass(sentimentDeltaEl, item.sentiment.delta);
+        }
+        if (positionValueEl) positionValueEl.textContent = item.position.value;
+        if (positionDeltaEl) {
+          positionDeltaEl.textContent = item.position.delta;
+          applyDeltaClass(positionDeltaEl, item.position.delta);
+        }
+        if (mentionedWrapEl) {
+          mentionedWrapEl.innerHTML = '';
+          if (item.status) {
+            const span = document.createElement('span');
+            span.className = 'sphere-prompt-status';
+            span.textContent = item.status;
+            mentionedWrapEl.appendChild(span);
+          } else {
+            (item.logos || []).slice(0, 3).forEach((src) => {
+              const img = document.createElement('img');
+              img.src = src;
+              img.alt = '';
+              img.className = 'sphere-prompt-logo';
+              mentionedWrapEl.appendChild(img);
+            });
+          }
+        }
+      }
+
+      function positionPrompt(point) {
+        if (!promptEl) return;
+        const projected = point.clone().project(camera);
+        const x = (projected.x * 0.5 + 0.5) * state.width;
+        const y = (-projected.y * 0.5 + 0.5) * state.height;
+        promptEl.style.left = x + 'px';
+        promptEl.style.top = y + 'px';
+      }
+
+      function positionPromptAutoplay() {
+        if (!promptEl) return;
+        const jitterX = (Math.random() - 0.5) * state.width * 0.12;
+        const jitterY = (Math.random() - 0.5) * state.height * 0.08;
+        const x = state.width * 0.5 + jitterX;
+        const y = state.height * 0.48 + jitterY;
+        promptEl.style.left = x + 'px';
+        promptEl.style.top = y + 'px';
+      }
+
+      function revealPrompt(mode) {
+        if (!promptEl) return;
+        promptEl.classList.toggle('autoplaying', mode === 'autoplay');
+        triggerPromptHeaderPulse();
+        promptEl.classList.add('visible');
+        promptEl.setAttribute('aria-hidden', 'false');
+        promptState.visible = true;
+        promptState.mode = mode;
+        syncAutoRotateSpeed();
+      }
+
+      function showPrompt(hit, isDanger) {
+        if (!promptEl || !hit) return;
+        if (promptState.visible && promptState.mode === 'manual') return;
+        stopPromptAutoplay();
+        renderPrompt(nextPromptItem(isDanger));
+        positionPrompt(hit.point);
+        revealPrompt('manual');
+      }
+
+      function queuePromptAutoplay(delay = PROMPT_AUTOPLAY_DELAY) {
+        if (!SPHERE_ENHANCED || !promptEl || state.pointerInside || controls.dragging) return;
+        if (promptState.autoplayTimer) window.clearTimeout(promptState.autoplayTimer);
+        promptState.mode = 'autoplay';
+        promptState.autoplayTimer = window.setTimeout(() => {
+          promptState.autoplayTimer = 0;
+          if (state.pointerInside || controls.dragging || promptState.mode !== 'autoplay') return;
+          if (promptState.visible) {
+            hidePrompt({ keepAutoplay: true });
+            return;
+          }
+          renderPrompt(nextPromptItem());
+          positionPromptAutoplay();
+          revealPrompt('autoplay');
+          queuePromptAutoplay(PROMPT_AUTOPLAY_DELAY);
+        }, delay);
+      }
+
+      function hidePrompt(options = {}) {
+        const keepAutoplay = Boolean(options.keepAutoplay);
+        if (!promptState.visible) return;
+        if (promptEl && promptState.visible) {
+          promptEl.classList.remove('autoplaying', 'visible', 'negative');
+          promptEl.setAttribute('aria-hidden', 'true');
+        }
+        stopPromptTyping();
+        if (promptTextEl && promptTextEl.textContent.endsWith('|')) {
+          promptTextEl.textContent = promptTextEl.textContent.slice(0, -1);
+        }
+        promptState.visible = false;
+        if (!keepAutoplay) promptState.mode = 'manual';
+        syncAutoRotateSpeed();
+        if (keepAutoplay) queuePromptAutoplay(220);
+      }
+
+      function findHighlightedHit(intersections, highlightAttr) {
+        if (!highlightAttr) return null;
+        for (const hit of intersections) {
+          const id = hit.instanceId;
+          if (id === null || id === undefined) continue;
+          if (highlightAttr.getX(id) <= 0.5) continue;
+          return hit;
+        }
+        return null;
+      }
+
+      function setPointerFromEvent(event) {
+        const rect = sphereWrap.getBoundingClientRect();
+        state.pointerNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        state.pointerNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        state.pointerInside = true;
+      }
+
+      function setFarHoverPoint() {
+        globe.instancedParticles.material.uniforms.u_hover_position.value.copy(SETTINGS.far);
+      }
+
+      function updateHover() {
+        if (!state.pointerInside) {
+          setFarHoverPoint();
+          if (!controls.dragging) sphereWrap.style.cursor = 'grab';
+          return;
+        }
+
+        raycaster.setFromCamera(state.pointerNDC, camera);
+        const sphereHit = raycaster.intersectObject(globe.sphere, true)[0];
+        if (sphereHit) {
+          const localPoint = globe.worldToLocal(sphereHit.point.clone());
+          globe.instancedParticles.material.uniforms.u_hover_position.value.copy(localPoint);
+        } else {
+          setFarHoverPoint();
+        }
+
+        if (controls.dragging || (promptState.visible && promptState.mode === 'manual')) {
+          sphereWrap.style.cursor = 'pointer';
+          return;
+        }
+
+        const intersections = raycaster.intersectObject(globe.instancedParticles, true);
+        const highlightAttr = globe.instancedParticles.geometry.getAttribute('a_highlight');
+        const dangerAttr = globe.instancedParticles.geometry.getAttribute('a_danger');
+        const highlightedHit = findHighlightedHit(intersections, highlightAttr);
+
+        if (highlightedHit) {
+          sphereWrap.style.cursor = 'pointer';
+          const id = highlightedHit.instanceId;
+          const isDanger = dangerAttr && dangerAttr.getX(id) > 0.5;
+          showPrompt(highlightedHit, isDanger);
+        } else {
+          sphereWrap.style.cursor = 'grab';
+        }
+      }
+
+      function resize() {
+        state.width = sphereWrap.offsetWidth;
+        state.height = sphereWrap.offsetHeight;
+        renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
+        renderer.setSize(state.width, state.height, false);
+        camera.aspect = state.width / state.height;
+        camera.updateProjectionMatrix();
+      }
+
+      function onPointerDown(event) {
+        stopPromptAutoplay();
+        if (promptState.mode === 'autoplay') hidePrompt();
+        controls.dragging = true;
+        controls.activePointerId = event.pointerId;
+        controls.lastPointer.x = event.clientX;
+        controls.lastPointer.y = event.clientY;
+        controls.angularVelocity.x = 0;
+        controls.angularVelocity.y = 0;
+        sphereWrap.style.cursor = 'grabbing';
+      }
+
+      function onPointerMove(event) {
+        setPointerFromEvent(event);
+
+        if (!controls.dragging) return;
+        if (controls.activePointerId !== null && event.pointerId !== controls.activePointerId) return;
+
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        const dx = event.clientX - controls.lastPointer.x;
+        const dy = event.clientY - controls.lastPointer.y;
+        controls.lastPointer.x = event.clientX;
+        controls.lastPointer.y = event.clientY;
+
+        globe.rotation.y += dx * SETTINGS.drag.sensitivity;
+        globe.rotation.x += dy * SETTINGS.drag.sensitivity;
+        globe.rotation.x = Math.max(-SETTINGS.drag.maxTilt, Math.min(SETTINGS.drag.maxTilt, globe.rotation.x));
+        controls.angularVelocity.x = dx * SETTINGS.drag.sensitivity;
+        controls.angularVelocity.y = dy * SETTINGS.drag.sensitivity;
+      }
+
+      function onPointerUp() {
+        if (!controls.dragging) return;
+        controls.dragging = false;
+        controls.activePointerId = null;
+        sphereWrap.style.cursor = 'grab';
+      }
+
+      function onPointerEnter(event) {
+        setPointerFromEvent(event);
+        if (SPHERE_ENHANCED) {
+          stopPromptAutoplay();
+          if (promptState.mode === 'autoplay') hidePrompt();
+        }
+        state.pointerInside = true;
+        syncAutoRotateSpeed();
+      }
+
+      function onPointerLeave() {
+        onPointerUp();
+        state.pointerInside = false;
+        setFarHoverPoint();
+        tweenAutoRotateSpeed(SETTINGS.rotation.static);
+        sphereWrap.style.cursor = 'grab';
+        queuePromptAutoplay(PROMPT_AUTOPLAY_RESTART_DELAY);
+      }
+
+      function onPromptLeave() {
+        hidePrompt();
+        queuePromptAutoplay(PROMPT_AUTOPLAY_RESTART_DELAY);
+      }
+
+      function onTouchStart(event) {
+        const touch = event.touches[0];
+        if (!touch) return;
+        stopPromptAutoplay();
+        hidePrompt();
+        controls.dragging = true;
+        controls.lastPointer.x = touch.clientX;
+        controls.lastPointer.y = touch.clientY;
+      }
+
+      function onTouchMove(event) {
+        if (!controls.dragging) return;
+        const touch = event.touches[0];
+        if (!touch) return;
+        const dx = touch.clientX - controls.lastPointer.x;
+        const dy = touch.clientY - controls.lastPointer.y;
+        controls.lastPointer.x = touch.clientX;
+        controls.lastPointer.y = touch.clientY;
+
+        globe.rotation.y += dx * SETTINGS.drag.sensitivity;
+        globe.rotation.x += dy * SETTINGS.drag.sensitivity;
+        globe.rotation.x = Math.max(-SETTINGS.drag.maxTilt, Math.min(SETTINGS.drag.maxTilt, globe.rotation.x));
+      }
+
+      function onTouchEnd() {
+        controls.dragging = false;
+        hidePrompt();
+        queuePromptAutoplay(PROMPT_AUTOPLAY_RESTART_DELAY);
+      }
+
+      let lastNow = 0;
+      function animate(now) {
+        const elapsed = now * 0.001;
+        const delta = lastNow > 0 ? (now - lastNow) : (1000 / 60);
+        lastNow = now;
+        globe.update(elapsed, delta, controls);
+        updateHover();
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+
+      const resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(sphereWrap);
+
+      sphereWrap.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('pointermove', onPointerMove, { passive: false });
+      window.addEventListener('pointerup', onPointerUp);
+      sphereWrap.addEventListener('pointerenter', onPointerEnter);
+      sphereWrap.addEventListener('pointerleave', onPointerLeave);
+      if (promptEl) {
+        promptEl.addEventListener('pointerleave', onPromptLeave);
+      }
+      sphereWrap.addEventListener('touchstart', onTouchStart, { passive: true });
+      sphereWrap.addEventListener('touchmove', onTouchMove, { passive: true });
+      sphereWrap.addEventListener('touchend', onTouchEnd);
+
+      resize();
+      animate(0);
+      queuePromptAutoplay(1200);
+    })();
+
+    // ===== MOUSE GLOW =====
+    const mouseGlow = document.getElementById('mouse-glow');
+    let mouseX = 0, mouseY = 0, glowX = 0, glowY = 0;
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      mouseGlow.classList.add('active');
+    });
+    document.addEventListener('mouseleave', () => mouseGlow.classList.remove('active'));
+    function updateGlow() {
+      glowX += (mouseX - glowX) * 0.08;
+      glowY += (mouseY - glowY) * 0.08;
+      mouseGlow.style.left = glowX + 'px';
+      mouseGlow.style.top = glowY + 'px';
+      requestAnimationFrame(updateGlow);
+    }
+    updateGlow();
+
+    // ===== CARD SPOTLIGHT FOLLOW =====
+    document.querySelectorAll('.spotlight-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--spot-x', x + 'px');
+        card.style.setProperty('--spot-y', y + 'px');
+        const before = card.querySelector(':scope')
+        card.style.background = `radial-gradient(400px circle at ${x}px ${y}px, rgba(48,122,232,0.06), transparent 60%), linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.background = '';
+      });
+    });
+
+    // ===== PARALLAX on floating badges =====
+    document.addEventListener('mousemove', (e) => {
+      const mx = (e.clientX / window.innerWidth - 0.5) * 2;
+      const my = (e.clientY / window.innerHeight - 0.5) * 2;
+      document.querySelectorAll('.float-1').forEach(el => {
+        el.style.transform = `translateY(${Math.sin(Date.now() / 1000) * 15}px) translate(${mx * 8}px, ${my * 5}px)`;
+      });
+      document.querySelectorAll('.float-2').forEach(el => {
+        el.style.transform = `translateY(${Math.sin(Date.now() / 800) * 12}px) translate(${mx * -6}px, ${my * -4}px)`;
+      });
+      document.querySelectorAll('.float-3').forEach(el => {
+        el.style.transform = `translateY(${Math.sin(Date.now() / 1200) * 10}px) translate(${mx * 5}px, ${my * -6}px)`;
+      });
+    });
+
+  </script>
+</body>
+
+</html>

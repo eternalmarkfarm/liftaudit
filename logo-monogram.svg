@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80">
+  <!-- LiftAudit Monogram: Clean geometric LA -->
+
+  <!-- L shape - bold sans-serif -->
+  <path d="M6,4 L18,4 L18,58 L46,58 L46,70 L6,70 Z" fill="#ffffff"/>
+
+  <!-- A shape - overlaps L base, unified form -->
+  <path d="M42,70 L62,4 L70,4 L90,70 L78,70 L73,52 L59,52 L54,70 Z M61,42 L66,18 L71,42 Z"
+        fill="#ffffff" fill-rule="evenodd"/>
+
+  <!-- Blue accent dot in A counter — the "audit eye" -->
+  <circle cx="66" cy="32" r="3.2" fill="#307ae8"/>
+</svg>

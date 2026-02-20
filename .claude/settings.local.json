@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "WebFetch(domain:trymeridian.com)",
+      "Bash(curl:*)",
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:supabase-design-system.vercel.app)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:marketplace.delorean.com)",
+      "WebFetch(domain:)",
+      "Bash(echo:*)"
+    ]
+  }
+}
